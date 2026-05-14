@@ -1,0 +1,13 @@
+{
+  "itemGroup.vibeysprojectilelib": "Example Mod Tab",
+  "block.vibeysprojectilelib.example_block": "Example Block",
+  "item.vibeysprojectilelib.example_item": "Example Item",
+
+  "vibeysprojectilelib.configuration.title": "Vibey's projectile lib Configs",
+  "vibeysprojectilelib.configuration.section.vibeysprojectilelib.common.toml": "Vibey's projectile lib Configs",
+  "vibeysprojectilelib.configuration.section.vibeysprojectilelib.common.toml.title": "Vibey's projectile lib Configs",
+  "vibeysprojectilelib.configuration.items": "Item List",
+  "vibeysprojectilelib.configuration.logDirtBlock": "Log Dirt Block",
+  "vibeysprojectilelib.configuration.magicNumberIntroduction": "Magic Number Text",
+  "vibeysprojectilelib.configuration.magicNumber": "Magic Number"
+}
