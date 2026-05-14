@@ -2,13 +2,13 @@ package net.vibey.vpl.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.vibey.vpl.entity.BulletEntity;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.geom.PartPose;
 import net.minecraft.client.model.geom.builders.*;
 import net.minecraft.resources.ResourceLocation;
+import net.vibey.vpl.entity.BulletEntity;
 
 public class BulletModel extends EntityModel<BulletEntity> {
 
@@ -22,23 +22,29 @@ public class BulletModel extends EntityModel<BulletEntity> {
     }
 
     public static LayerDefinition createBodyLayer() {
-        MeshDefinition mesh = new MeshDefinition();
-        mesh.getRoot().addOrReplaceChild("bb_main",
+        MeshDefinition meshdefinition = new MeshDefinition();
+        PartDefinition partdefinition = meshdefinition.getRoot();
+
+        partdefinition.addOrReplaceChild("bb_main",
                 CubeListBuilder.create()
                         .texOffs(-4, -4)
-                        .addBox(-1f, -1f, -3f, 2f, 2f, 6f, new CubeDeformation(0f)),
-                PartPose.offset(0f, 0f, 0f));
-        return LayerDefinition.create(mesh, 16, 16);
+                        .addBox(-1.0F, -1.0F, -3.0F, 2.0F, 2.0F, 6.0F, new CubeDeformation(0.0F)),
+                PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        return LayerDefinition.create(meshdefinition, 16, 16);
     }
 
     @Override
     public void setupAnim(BulletEntity entity, float limbSwing, float limbSwingAmount,
-                          float ageInTicks, float netHeadYaw, float headPitch) {}
+                          float ageInTicks, float netHeadYaw, float headPitch) {
+        // Bullets don't animate
+    }
 
     @Override
-    public void renderToBuffer(PoseStack poseStack, VertexConsumer vc,
+    public void renderToBuffer(PoseStack poseStack, VertexConsumer vertexConsumer,
                                int packedLight, int packedOverlay,
-                               float r, float g, float b, float a) {
-        bb_main.render(poseStack, vc, packedLight, packedOverlay, r, g, b, a);
+                               int color) {
+        // NeoForge / MC 1.21: renderToBuffer signature changed from (r,g,b,a floats) to a packed int color
+        bb_main.render(poseStack, vertexConsumer, packedLight, packedOverlay, color);
     }
 }
