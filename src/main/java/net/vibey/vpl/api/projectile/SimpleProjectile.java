@@ -22,16 +22,12 @@ public class SimpleProjectile extends Projectile {
     public static final EntityDataAccessor<Float> DATA_DAMAGE =
             SynchedEntityData.defineId(SimpleProjectile.class, EntityDataSerializers.FLOAT);
 
-    public static final double AIR_DRAG     = 0.99;  //extremely basic
-
-    public static final double GRAVITY      = 0.015;
-
+    public static final double AIR_DRAG = 0.99;
+    public static final double GRAVITY = 0.015;
     public static final double COLLISION_MARGIN = 0.10;
-
-    public static final int MAX_LIFETIME_TICKS = 1200;  //60 seconds
+    public static final int MAX_LIFETIME_TICKS = 1200;
 
     private int ticksAlive = 0;
-
     private AABB collisionSearchBox = null;
 
     public SimpleProjectile(EntityType<? extends SimpleProjectile> type, Level level) {
@@ -49,33 +45,41 @@ public class SimpleProjectile extends Projectile {
         this.setNoGravity(true);
     }
 
+    public float damage(){return 0.0f;}
+
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
-        builder.define(DATA_DAMAGE, 0.0f);
+        builder.define(DATA_DAMAGE, damage());
     }
 
-    public double getAirDrag(){return AIR_DRAG;}
-
-    public double getGravityForce(){return GRAVITY;}
-
-    public double getCollisionMargin(){return COLLISION_MARGIN;}
-
-    public int getMaxLifetimeTicks(){return MAX_LIFETIME_TICKS;}
+    public double getAirDrag() { return AIR_DRAG; }
+    public double getGravityForce() { return GRAVITY; }
+    public double getCollisionMargin() { return COLLISION_MARGIN; }
+    public int getMaxLifetimeTicks() { return MAX_LIFETIME_TICKS; }
 
     public void onBlockHit(Vec3 currentPos, Vec3 nextPos) {
-        BlockHitResult result = this.level().clip(new ClipContext(
-                currentPos, nextPos,
-                ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE,
-                this
-        ));
+        Vec3 step = nextPos.subtract(currentPos);
+        int subdivisions = Math.max((int) Math.ceil(step.length()), 1);
 
-        if (result.getType() != HitResult.Type.MISS) {
-            this.discard();
+        for (int i = 0; i < subdivisions; i++) {
+            Vec3 from = currentPos.add(step.scale((double) i / subdivisions));
+            Vec3 to = currentPos.add(step.scale((double) (i + 1) / subdivisions));
+
+            BlockHitResult result = this.level().clip(new ClipContext(
+                    from, to,
+                    ClipContext.Block.COLLIDER,
+                    ClipContext.Fluid.NONE,
+                    this
+            ));
+
+            if (result.getType() != HitResult.Type.MISS) {
+                this.discard();
+                return;
+            }
         }
     }
 
-    public void onEntityHit(){
+    public void onEntityHit() {
         List<Entity> nearby = this.level().getEntities(
                 this, collisionSearchBox,
                 e -> e.isAlive() && e.isPickable()
@@ -93,22 +97,28 @@ public class SimpleProjectile extends Projectile {
 
     @Override
     public void tick() {
-        this.baseTick();
+
+        this.tickCount++;
+
+        this.xo = this.getX();
+        this.yo = this.getY();
+        this.zo = this.getZ();
 
         if (++ticksAlive > getMaxLifetimeTicks()) {
             this.discard();
             return;
         }
 
-        Vec3 motion     = this.getDeltaMovement();
+        Vec3 motion = this.getDeltaMovement();
         Vec3 currentPos = this.position();
-        Vec3 nextPos    = currentPos.add(motion);
+        Vec3 nextPos = currentPos.add(motion);
 
         if (!this.level().isClientSide) {
             onBlockHit(currentPos, nextPos);
 
-            updateCollisionSearchBox(currentPos, nextPos);
+            if (this.isRemoved()) return;
 
+            updateCollisionSearchBox(currentPos, nextPos);
             onEntityHit();
         }
 
@@ -129,7 +139,7 @@ public class SimpleProjectile extends Projectile {
         double hDist = motion.horizontalDistance();
         if (hDist > 0.001) {
             this.setYRot((float) (Mth.atan2(motion.x, motion.z) * Mth.RAD_TO_DEG));
-            this.setXRot((float) (Mth.atan2(motion.y, hDist)   * Mth.RAD_TO_DEG));
+            this.setXRot((float) (Mth.atan2(motion.y, hDist) * Mth.RAD_TO_DEG));
             this.yRotO = this.getYRot();
             this.xRotO = this.getXRot();
         }
@@ -143,7 +153,6 @@ public class SimpleProjectile extends Projectile {
     @Override
     public void recreateFromPacket(ClientboundAddEntityPacket packet) {
         super.recreateFromPacket(packet);
-
         this.updateRotation();
         this.ticksAlive = 0;
         this.collisionSearchBox = null;
@@ -163,7 +172,7 @@ public class SimpleProjectile extends Projectile {
 
     @Override
     public boolean shouldRenderAtSqrDistance(double distance) {
-        return true; // change to lower render distance with small bullets
+        return true;
     }
 
     @Override
@@ -171,8 +180,8 @@ public class SimpleProjectile extends Projectile {
         return false;
     }
 
-    @Override public boolean isPickable()        { return false; }
-    @Override public boolean isPushable()        { return false; }
+    @Override public boolean isPickable() { return false; }
+    @Override public boolean isPushable() { return false; }
     @Override public boolean canBeCollidedWith() { return false; }
 
     @Override
@@ -189,8 +198,7 @@ public class SimpleProjectile extends Projectile {
         tag.putFloat("Damage", this.entityData.get(DATA_DAMAGE));
     }
 
-    public float getDamage()          { return this.entityData.get(DATA_DAMAGE); }
-    public void  setDamage(float dmg) { this.entityData.set(DATA_DAMAGE, dmg);   }
-    public int   getTicksAlive()      { return ticksAlive; }
+    public float getDamage() { return this.entityData.get(DATA_DAMAGE); }
+    public void setDamage(float dmg) { this.entityData.set(DATA_DAMAGE, dmg); }
+    public int getTicksAlive() { return ticksAlive; }
 }
-

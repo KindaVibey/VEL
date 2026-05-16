@@ -18,7 +18,7 @@ public class ModEntityTypes {
                             MobCategory.MISC
                     )
                     .sized(0.1f, 0.1f)
-                    .updateInterval(20)
+                    .updateInterval(10)
                     .setShouldReceiveVelocityUpdates(true)
                     .fireImmune()
                     .build("bullet"));

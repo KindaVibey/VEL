@@ -66,9 +66,9 @@ public class GunTurretBlock extends Block {
         );
 
         Vec3 velocity = new Vec3(
-                facing.getStepX() * 4.0,
-                facing.getStepY() * 4.0,
-                facing.getStepZ() * 4.0
+                facing.getStepX() * 20.0,
+                facing.getStepY() * 20.0,
+                facing.getStepZ() * 20.0
         );
 
         BulletEntity bullet = new BulletEntity(
