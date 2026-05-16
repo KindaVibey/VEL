@@ -21,6 +21,18 @@ public class SimpleProjectile extends Projectile {
 
     public static final EntityDataAccessor<Float> DATA_DAMAGE =
             SynchedEntityData.defineId(SimpleProjectile.class, EntityDataSerializers.FLOAT);
+    public static final EntityDataAccessor<Float> DATA_VEL_X =
+            SynchedEntityData.defineId(SimpleProjectile.class, EntityDataSerializers.FLOAT);
+    public static final EntityDataAccessor<Float> DATA_VEL_Y =
+            SynchedEntityData.defineId(SimpleProjectile.class, EntityDataSerializers.FLOAT);
+    public static final EntityDataAccessor<Float> DATA_VEL_Z =
+            SynchedEntityData.defineId(SimpleProjectile.class, EntityDataSerializers.FLOAT);
+    public static final EntityDataAccessor<Float> DATA_SPAWN_X =
+            SynchedEntityData.defineId(SimpleProjectile.class, EntityDataSerializers.FLOAT);
+    public static final EntityDataAccessor<Float> DATA_SPAWN_Y =
+            SynchedEntityData.defineId(SimpleProjectile.class, EntityDataSerializers.FLOAT);
+    public static final EntityDataAccessor<Float> DATA_SPAWN_Z =
+            SynchedEntityData.defineId(SimpleProjectile.class, EntityDataSerializers.FLOAT);
 
     public static final double AIR_DRAG = 0.99;
     public static final double GRAVITY = 0.015;
@@ -42,14 +54,25 @@ public class SimpleProjectile extends Projectile {
         this.setDeltaMovement(velocity);
         this.updateRotation();
         this.entityData.set(DATA_DAMAGE, damage);
-        this.setNoGravity(true);
+        this.entityData.set(DATA_VEL_X, (float) velocity.x);
+        this.entityData.set(DATA_VEL_Y, (float) velocity.y);
+        this.entityData.set(DATA_VEL_Z, (float) velocity.z);
+        this.entityData.set(DATA_SPAWN_X, (float) position.x);
+        this.entityData.set(DATA_SPAWN_Y, (float) position.y);
+        this.entityData.set(DATA_SPAWN_Z, (float) position.z);
     }
 
-    public float damage(){return 0.0f;}
+    public float damage() { return 0.0f; }
 
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         builder.define(DATA_DAMAGE, damage());
+        builder.define(DATA_VEL_X, 0f);
+        builder.define(DATA_VEL_Y, 0f);
+        builder.define(DATA_VEL_Z, 0f);
+        builder.define(DATA_SPAWN_X, 0f);
+        builder.define(DATA_SPAWN_Y, 0f);
+        builder.define(DATA_SPAWN_Z, 0f);
     }
 
     public double getAirDrag() { return AIR_DRAG; }
@@ -97,8 +120,18 @@ public class SimpleProjectile extends Projectile {
 
     @Override
     public void tick() {
-
-        this.tickCount++;
+        if (this.level().isClientSide && ticksAlive == 0) {
+            float vx = this.entityData.get(DATA_VEL_X);
+            float vy = this.entityData.get(DATA_VEL_Y);
+            float vz = this.entityData.get(DATA_VEL_Z);
+            float sx = this.entityData.get(DATA_SPAWN_X);
+            float sy = this.entityData.get(DATA_SPAWN_Y);
+            float sz = this.entityData.get(DATA_SPAWN_Z);
+            if (vx != 0 || vy != 0 || vz != 0) {
+                this.setDeltaMovement(vx, vy, vz);
+                this.setPos(sx, sy, sz);
+            }
+        }
 
         if (++ticksAlive > getMaxLifetimeTicks()) {
             this.discard();
@@ -111,7 +144,6 @@ public class SimpleProjectile extends Projectile {
 
         if (!this.level().isClientSide) {
             onBlockHit(currentPos, nextPos);
-
             if (this.isRemoved()) return;
 
             updateCollisionSearchBox(currentPos, nextPos);
@@ -119,7 +151,6 @@ public class SimpleProjectile extends Projectile {
         }
 
         this.setPos(nextPos.x, nextPos.y, nextPos.z);
-
         this.setDeltaMovement(
                 motion.x * getAirDrag(),
                 motion.y - getGravityForce(),
@@ -127,6 +158,16 @@ public class SimpleProjectile extends Projectile {
         );
 
         updateRotation();
+    }
+
+    @Override
+    public void lerpTo(double x, double y, double z, float yRot, float xRot, int steps) {
+        // Block server position corrections entirely — client simulates authoritatively
+    }
+
+    @Override
+    public void lerpMotion(double x, double y, double z) {
+        // Block server velocity corrections entirely
     }
 
     @Override
