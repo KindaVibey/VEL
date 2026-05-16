@@ -11,8 +11,11 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 import net.vibey.vpl.entity.BulletEntity;
 
+@OnlyIn(Dist.CLIENT)
 public class BulletRenderer extends EntityRenderer<BulletEntity> {
 
     private static final ResourceLocation TEXTURE =
@@ -26,6 +29,7 @@ public class BulletRenderer extends EntityRenderer<BulletEntity> {
         this.model = new BulletModel(context.bakeLayer(BulletModel.LAYER_LOCATION));
     }
 
+    @OnlyIn(Dist.CLIENT)
     @Override
     public void render(BulletEntity entity, float entityYaw, float partialTicks,
                        PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
@@ -58,8 +62,6 @@ public class BulletRenderer extends EntityRenderer<BulletEntity> {
                 OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
 
         poseStack.popPose();
-
-        super.render(entity, entityYaw, partialTicks, poseStack, buffer, packedLight);
     }
 
     @Override

@@ -100,10 +100,6 @@ public class SimpleProjectile extends Projectile {
 
         this.tickCount++;
 
-        this.xo = this.getX();
-        this.yo = this.getY();
-        this.zo = this.getZ();
-
         if (++ticksAlive > getMaxLifetimeTicks()) {
             this.discard();
             return;
@@ -130,7 +126,7 @@ public class SimpleProjectile extends Projectile {
                 motion.z * getAirDrag()
         );
 
-        this.updateRotation();
+        updateRotation();
     }
 
     @Override
