@@ -15,4 +15,7 @@ public class VEL {
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
     }
+
+    //comment for github test
+
 }
