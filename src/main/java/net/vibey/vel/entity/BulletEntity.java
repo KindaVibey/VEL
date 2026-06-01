@@ -1,9 +1,9 @@
-package net.vibey.vpl.entity;
+package net.vibey.vel.entity;
 
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.vibey.vpl.api.projectile.SimpleProjectile;
+import net.vibey.vel.api.projectile.SimpleProjectile;
 
 public class BulletEntity extends SimpleProjectile {
 

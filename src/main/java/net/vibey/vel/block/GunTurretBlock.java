@@ -1,4 +1,4 @@
-package net.vibey.vpl.block;
+package net.vibey.vel.block;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -14,8 +14,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.Vec3;
-import net.vibey.vpl.entity.BulletEntity;
-import net.vibey.vpl.entity.ModEntityTypes;
+import net.vibey.vel.entity.BulletEntity;
+import net.vibey.vel.entity.ModEntityTypes;
 
 public class GunTurretBlock extends Block {
 
@@ -81,7 +81,6 @@ public class GunTurretBlock extends Block {
 
         level.addFreshEntity(bullet);
 
-        // NeoForge 1.21: SoundEvents.GENERIC_EXPLODE is now a Holder
         level.playSound(null, pos, SoundEvents.GENERIC_EXPLODE.value(),
                 SoundSource.BLOCKS, 0.5f, 1.5f);
     }

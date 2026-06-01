@@ -1,0 +1,13 @@
+{
+  "itemGroup.vibeysentitylib": "Example Mod Tab",
+  "block.vibeysentitylib.example_block": "Example Block",
+  "item.vibeysentitylib.example_item": "Example Item",
+
+  "vibeysentitylib.configuration.title": "Vibey's projectile lib Configs",
+  "vibeysentitylib.configuration.section.vibeysentitylib.common.toml": "Vibey's projectile lib Configs",
+  "vibeysentitylib.configuration.section.vibeysentitylib.common.toml.title": "Vibey's projectile lib Configs",
+  "vibeysentitylib.configuration.items": "Item List",
+  "vibeysentitylib.configuration.logDirtBlock": "Log Dirt Block",
+  "vibeysentitylib.configuration.magicNumberIntroduction": "Magic Number Text",
+  "vibeysentitylib.configuration.magicNumber": "Magic Number"
+}

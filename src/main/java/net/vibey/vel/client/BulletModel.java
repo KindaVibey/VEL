@@ -1,4 +1,4 @@
-package net.vibey.vpl.client;
+package net.vibey.vel.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -10,7 +10,7 @@ import net.minecraft.client.model.geom.builders.*;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
-import net.vibey.vpl.entity.BulletEntity;
+import net.vibey.vel.entity.BulletEntity;
 
 @OnlyIn(Dist.CLIENT)
 public class BulletModel extends EntityModel<BulletEntity> {
@@ -40,14 +40,14 @@ public class BulletModel extends EntityModel<BulletEntity> {
     @Override
     public void setupAnim(BulletEntity entity, float limbSwing, float limbSwingAmount,
                           float ageInTicks, float netHeadYaw, float headPitch) {
-        // Bullets don't animate
+
     }
 
     @Override
     public void renderToBuffer(PoseStack poseStack, VertexConsumer vertexConsumer,
                                int packedLight, int packedOverlay,
                                int color) {
-        // NeoForge / MC 1.21: renderToBuffer signature changed from (r,g,b,a floats) to a packed int color
+
         bb_main.render(poseStack, vertexConsumer, packedLight, packedOverlay, color);
     }
 }

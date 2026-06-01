@@ -1,4 +1,4 @@
-package net.vibey.vpl.api.projectile;
+package net.vibey.vel.api.projectile;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
@@ -162,12 +162,12 @@ public class SimpleProjectile extends Projectile {
 
     @Override
     public void lerpTo(double x, double y, double z, float yRot, float xRot, int steps) {
-        // Block server position corrections entirely — client simulates authoritatively
+
     }
 
     @Override
     public void lerpMotion(double x, double y, double z) {
-        // Block server velocity corrections entirely
+
     }
 
     @Override

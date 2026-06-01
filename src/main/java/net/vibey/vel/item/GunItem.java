@@ -1,4 +1,4 @@
-package net.vibey.vpl.item;
+package net.vibey.vel.item;
 
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -10,8 +10,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.vibey.vpl.entity.BulletEntity;
-import net.vibey.vpl.entity.ModEntityTypes;
+import net.vibey.vel.entity.BulletEntity;
+import net.vibey.vel.entity.ModEntityTypes;
 
 public class GunItem extends Item {
 

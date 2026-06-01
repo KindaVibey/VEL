@@ -1,4 +1,4 @@
-package net.vibey.vpl.client;
+package net.vibey.vel.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -13,7 +13,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
-import net.vibey.vpl.entity.BulletEntity;
+import net.vibey.vel.entity.BulletEntity;
 
 @OnlyIn(Dist.CLIENT)
 public class BulletRenderer extends EntityRenderer<BulletEntity> {
@@ -36,8 +36,7 @@ public class BulletRenderer extends EntityRenderer<BulletEntity> {
 
         poseStack.pushPose();
 
-        // Because the bullet simulates on both sides, getDeltaMovement() is always
-        // accurate on the client — no interpolation lag, perfectly smooth rendering.
+
         Vec3 velocity = entity.getDeltaMovement();
 
         float pitch;
@@ -57,7 +56,7 @@ public class BulletRenderer extends EntityRenderer<BulletEntity> {
         poseStack.mulPose(Axis.XP.rotationDegrees(pitch));
 
         VertexConsumer vertexConsumer = buffer.getBuffer(RenderType.entityCutout(TEXTURE));
-        // NeoForge / MC 1.21: pass packed ARGB white (0xFFFFFFFF) instead of four floats
+
         model.renderToBuffer(poseStack, vertexConsumer, packedLight,
                 OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
 

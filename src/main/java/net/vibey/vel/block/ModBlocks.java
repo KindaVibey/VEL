@@ -1,4 +1,4 @@
-package net.vibey.vpl.block;
+package net.vibey.vel.block;
 
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -6,12 +6,12 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredRegister;
-import net.vibey.vpl.VPL;
+import net.vibey.vel.VEL;
 
 public class ModBlocks {
 
     public static final DeferredRegister.Blocks BLOCKS =
-            DeferredRegister.createBlocks(VPL.MOD_ID);
+            DeferredRegister.createBlocks(VEL.MOD_ID);
 
     public static final DeferredBlock<Block> GUN_TURRET = BLOCKS.register("gun_turret",
             () -> new GunTurretBlock(BlockBehaviour.Properties.of()

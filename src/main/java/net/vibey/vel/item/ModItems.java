@@ -1,17 +1,17 @@
-package net.vibey.vpl.item;
+package net.vibey.vel.item;
 
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
-import net.vibey.vpl.VPL;
-import net.vibey.vpl.block.ModBlocks;
+import net.vibey.vel.VEL;
+import net.vibey.vel.block.ModBlocks;
 
 public class ModItems {
 
     public static final DeferredRegister.Items ITEMS =
-            DeferredRegister.createItems(VPL.MOD_ID);
+            DeferredRegister.createItems(VEL.MOD_ID);
 
     public static final DeferredItem<Item> GUN = ITEMS.register("gun",
             () -> new GunItem(new Item.Properties()));
