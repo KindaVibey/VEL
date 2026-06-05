@@ -11,10 +11,10 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.vibey.vel.VEL;
 import net.vibey.vel.api.particle.ModParticles;
 
-@EventBusSubscriber(modid = VEL.MOD_ID)
+//@EventBusSubscriber(modid = VEL.MOD_ID)
 public class ParticleTestEvent {
 
-    @SubscribeEvent
+    //@SubscribeEvent
     public static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
         Player player = event.getEntity();
         Level level = event.getLevel();
