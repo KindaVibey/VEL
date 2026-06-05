@@ -14,7 +14,7 @@ public class ModParticles {
             DeferredRegister.create(Registries.PARTICLE_TYPE, VEL.MOD_ID);
 
     public static final DeferredHolder<ParticleType<?>, SimpleParticleType> TEST_MULTI =
-            PARTICLE_TYPES.register("test_multi", () -> new SimpleParticleType(false));
+            PARTICLE_TYPES.register("test_multi", () -> new SimpleParticleType(true)); //ALWAYS OVERRIDE!!!
 
     public static void register(IEventBus eventBus) {
         PARTICLE_TYPES.register(eventBus);

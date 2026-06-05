@@ -2,9 +2,11 @@ package net.vibey.vel.api.particle;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.SingleQuadParticle;
+import net.minecraft.client.ParticleStatus;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
@@ -16,6 +18,7 @@ import java.util.*;
 
 @OnlyIn(Dist.CLIENT)
 public abstract class SingleQuadMultiParticle extends Particle {
+    private final Minecraft minecraft;
 
     public static class SubParticle {
 
@@ -90,14 +93,37 @@ public abstract class SingleQuadMultiParticle extends Particle {
     private final Map<Integer, SubParticle> subParticleMap = new LinkedHashMap<>();
     private int nextId = 0;
 
-    protected SingleQuadMultiParticle(ClientLevel level, double x, double y, double z) {
+    protected SingleQuadMultiParticle(ClientLevel level, double x, double y, double z, Minecraft minecraft) {
         super(level, x, y, z);
+        this.minecraft = minecraft;
     }
 
     protected SingleQuadMultiParticle(
             ClientLevel level, double x, double y, double z,
-            double xSpeed, double ySpeed, double zSpeed) {
+            double xSpeed, double ySpeed, double zSpeed, Minecraft minecraft) {
         super(level, x, y, z, xSpeed, ySpeed, zSpeed);
+        this.minecraft = minecraft;
+    }
+
+    protected ParticleStatus getParticleStatus() {
+        return this.minecraft.options.particles().get();
+    }
+
+    public boolean isDecreased() {
+        return getParticleStatus() == ParticleStatus.DECREASED;
+    }
+    public boolean isMinimal() {
+        return getParticleStatus() == ParticleStatus.MINIMAL;
+    }
+
+    public double getAmount() {
+        if (isDecreased()) {
+            return 0.75;
+        } else if (isMinimal()) {
+            return 0.5;
+        } else {
+            return 1.0;
+        }
     }
 
     public SubParticle addSubParticle(SubParticle sp) {
@@ -151,6 +177,8 @@ public abstract class SingleQuadMultiParticle extends Particle {
     }
 
     public int addSubParticlesOnSphere(int count, float radius) {
+        count *= getAmount();
+
         int firstId = nextId;
         double goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
         for (int i = 0; i < count; i++) {
@@ -159,6 +187,34 @@ public abstract class SingleQuadMultiParticle extends Particle {
             double theta = goldenAngle * i;
             SubParticle sp = new SubParticle(nextId++, (float)(Math.cos(theta) * r * radius), (float)(y * radius), (float)(Math.sin(theta) * r * radius));
             subParticleMap.put(sp.id, sp);
+        }
+        return firstId;
+    }
+
+    protected final Map<Integer, float[]> torusData = new HashMap<>();
+
+    public int addSubParticlesOnTorus(int ringCount, int tubeCount,
+                                      float majorRadius, float tubeRadiusX, float tubeRadiusY) {
+        ringCount *= getAmount();
+        tubeCount *= getAmount();
+
+        int firstId = nextId;
+        double ringStep = 2.0 * Math.PI / ringCount;
+        double tubeStep = 2.0 * Math.PI / tubeCount;
+        for (int i = 0; i < ringCount; i++) {
+            double u = ringStep * i;
+            float cosU = (float) Math.cos(u);
+            float sinU = (float) Math.sin(u);
+            for (int j = 0; j < tubeCount; j++) {
+                double v = tubeStep * j;
+                float x = (majorRadius + tubeRadiusX * (float) Math.cos(v)) * cosU;
+                float y = tubeRadiusY * (float) Math.sin(v);
+                float z = (majorRadius + tubeRadiusX * (float) Math.cos(v)) * sinU;
+                SubParticle sp = new SubParticle(nextId++, x, y, z);
+                subParticleMap.put(sp.id, sp);
+                // store: cosU, sinU, current v angle, majorRadius, tubeRadiusX, tubeRadiusY
+                torusData.put(sp.id, new float[]{cosU, sinU, (float) v, majorRadius, tubeRadiusX, tubeRadiusY});
+            }
         }
         return firstId;
     }

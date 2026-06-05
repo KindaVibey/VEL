@@ -1,5 +1,6 @@
 package net.vibey.vel.api.particle;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.SpriteSet;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -11,14 +12,14 @@ public abstract class TextureSheetMultiParticle extends SingleQuadMultiParticle 
 
     protected TextureAtlasSprite sprite;
 
-    protected TextureSheetMultiParticle(ClientLevel level, double x, double y, double z) {
-        super(level, x, y, z);
+    protected TextureSheetMultiParticle(ClientLevel level, double x, double y, double z, Minecraft minecraft) {
+        super(level, x, y, z, minecraft);
     }
 
     protected TextureSheetMultiParticle(
             ClientLevel level, double x, double y, double z,
-            double xSpeed, double ySpeed, double zSpeed) {
-        super(level, x, y, z, xSpeed, ySpeed, zSpeed);
+            double xSpeed, double ySpeed, double zSpeed, Minecraft minecraft) {
+        super(level, x, y, z, xSpeed, ySpeed, zSpeed, minecraft);
     }
 
     protected void setSprite(TextureAtlasSprite sprite) {
