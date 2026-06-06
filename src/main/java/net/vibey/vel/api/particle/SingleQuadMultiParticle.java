@@ -90,8 +90,8 @@ public abstract class SingleQuadMultiParticle extends Particle {
         }
     }
 
-    private final Map<Integer, SubParticle> subParticleMap = new LinkedHashMap<>();
-    private int nextId = 0;
+    protected final Map<Integer, SubParticle> subParticleMap = new LinkedHashMap<>();
+    protected int nextId = 0;
 
     protected SingleQuadMultiParticle(ClientLevel level, double x, double y, double z, Minecraft minecraft) {
         super(level, x, y, z);
