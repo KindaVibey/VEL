@@ -16,6 +16,9 @@ public class ModItems {
     public static final DeferredItem<Item> GUN = ITEMS.register("gun",
             () -> new GunItem(new Item.Properties()));
 
+    public static final DeferredItem<Item> ASSEMBLY_WAND = ITEMS.register("assembly_wand",
+            () -> new AssemblyWandItem(new Item.Properties()));
+
     public static final DeferredItem<Item> GUN_TURRET = ITEMS.register("gun_turret",
             () -> new BlockItem(ModBlocks.GUN_TURRET.get(), new Item.Properties()));
 

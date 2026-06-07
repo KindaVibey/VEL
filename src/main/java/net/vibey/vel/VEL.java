@@ -6,6 +6,7 @@ import net.vibey.vel.block.ModBlocks;
 import net.vibey.vel.entity.ModEntityTypes;
 import net.vibey.vel.item.ModItems;
 import net.vibey.vel.api.particle.ModParticles;
+import net.vibey.vel.network.ModNetwork;
 
 @Mod(VEL.MOD_ID)
 public class VEL {
@@ -16,5 +17,6 @@ public class VEL {
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
         ModParticles.register(modEventBus);
+        ModNetwork.register(modEventBus);
     }
 }

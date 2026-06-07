@@ -9,6 +9,7 @@ import net.vibey.vel.VEL;
 import net.vibey.vel.entity.ModEntityTypes;
 import net.vibey.vel.api.particle.ModParticles;
 import net.vibey.vel.api.particle.TestMultiParticle;
+import net.vibey.vel.internal.assemblies.AssemblyRenderer;
 
 @EventBusSubscriber(modid = VEL.MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientSetup {
@@ -16,6 +17,7 @@ public class ClientSetup {
     @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntityTypes.BULLET.get(), BulletRenderer::new);
+        event.registerEntityRenderer(ModEntityTypes.ASSEMBLY.get(), AssemblyRenderer::new);
     }
 
     @SubscribeEvent
