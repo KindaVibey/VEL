@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.ParticleProvider;
 import net.minecraft.client.particle.SpriteSet;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
@@ -21,7 +22,8 @@ public class TestMultiParticle extends TextureSheetMultiParticle {
         this.quadSize = 0.12f;
         this.hasPhysics = false;
         this.gravity = 0f;
-        pickSprite(sprites);
+
+        TextureAtlasSprite texture = sprites.get(0, 1);
 
 //        int circleStart = addSubParticlesInCircle(12, 1.5f);
 //        for (int i = circleStart; i < circleStart + 12; i++) {
@@ -44,6 +46,9 @@ public class TestMultiParticle extends TextureSheetMultiParticle {
           int torusStart = addSubParticlesOnTorus(50, 20, 10, 2, 4);
             for (int i = torusStart; i < torusStart + subParticleCount(); i++) {
                 //float t = (float)(i - sphereStart) / 500f;
+                getSubParticle(i).setUvOverride(
+                    texture.getU0(), texture.getU1(), texture.getV0(), texture.getV1()
+                );
                 getSubParticle(i).setScale(0.8f).setAlpha(0.7f);
             }
 

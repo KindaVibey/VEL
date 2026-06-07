@@ -276,7 +276,7 @@ public abstract class SingleQuadMultiParticle extends Particle {
 
         float parentRoll = (this.roll != 0f) ? Mth.lerp(partialTicks, this.oRoll, this.roll) : 0f;
 
-        float baseU0 = getU0(), baseU1 = getU1(), baseV0 = getV0(), baseV1 = getV1();
+        float baseU0 = Float.NaN, baseU1 = 0f, baseV0 = 0f, baseV1 = 0f;
         float quadSz = getQuadSize(partialTicks);
 
         for (SubParticle sp : subParticleMap.values()) {
@@ -295,10 +295,16 @@ public abstract class SingleQuadMultiParticle extends Particle {
 
             float size = quadSz * sp.scale;
 
-            float u0 = sp.hasUvOverride() ? sp.u0 : baseU0;
-            float u1 = sp.hasUvOverride() ? sp.u1 : baseU1;
-            float v0 = sp.hasUvOverride() ? sp.v0 : baseV0;
-            float v1 = sp.hasUvOverride() ? sp.v1 : baseV1;
+            float u0, u1, v0, v1;
+            if (sp.hasUvOverride()) {
+                u0 = sp.u0; u1 = sp.u1; v0 = sp.v0; v1 = sp.v1;
+            } else {
+                // Resolve base UVs once, on first need
+                if (Float.isNaN(baseU0)) {
+                    baseU0 = getU0(); baseU1 = getU1(); baseV0 = getV0(); baseV1 = getV1();
+                }
+                u0 = baseU0; u1 = baseU1; v0 = baseV0; v1 = baseV1;
+            }
 
             int light;
             if (sp.hasLightOverride()) {
