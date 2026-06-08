@@ -8,6 +8,7 @@ import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import net.vibey.vel.internal.assemblies.AssemblyBlock;
 import org.joml.Matrix4f;
@@ -37,19 +38,16 @@ public class AssemblyBakedMesh {
     private boolean built = false;
     private Future<?> pendingBuild = null;
 
-    // First build — sync so there's no gap on first render
-    public void buildSync(List<AssemblyBlock> blocks, BlockPos entityPos) {
+    public void buildSync(List<AssemblyBlock> blocks, Vec3 entityPos) {
         if (built) dispose();
         Map<RenderType, MeshData> meshes = compileMeshes(blocks, entityPos);
         uploadMeshes(meshes);
     }
 
-    // Subsequent builds — async so light updates never hitch
-    public void buildAsync(List<AssemblyBlock> blocks, BlockPos entityPos) {
+    public void buildAsync(List<AssemblyBlock> blocks, Vec3 entityPos) {
         if (pendingBuild != null && !pendingBuild.isDone()) {
             pendingBuild.cancel(true);
         }
-        // Snapshot the list so the background thread has its own copy
         List<AssemblyBlock> snapshot = List.copyOf(blocks);
         pendingBuild = MESH_EXECUTOR.submit(() -> {
             Map<RenderType, MeshData> meshes = compileMeshes(snapshot, entityPos);
@@ -57,17 +55,21 @@ public class AssemblyBakedMesh {
         });
     }
 
-    // Pure data compilation — no GL calls, safe off render thread
-    private Map<RenderType, MeshData> compileMeshes(List<AssemblyBlock> blocks, BlockPos entityPos) {
+    private Map<RenderType, MeshData> compileMeshes(List<AssemblyBlock> blocks, Vec3 entityPos) {
         BlockRenderDispatcher dispatcher = Minecraft.getInstance().getBlockRenderer();
         RandomSource random = RandomSource.create();
-        AssemblyFakeLevel fakeLevel = new AssemblyFakeLevel(blocks, entityPos);
+        BlockPos entityBlockPos = new BlockPos((int) Math.floor(entityPos.x), (int) Math.floor(entityPos.y), (int) Math.floor(entityPos.z));
+        AssemblyFakeLevel fakeLevel = new AssemblyFakeLevel(blocks, entityBlockPos);
         Map<RenderType, MeshData> result = new LinkedHashMap<>();
+
+        // Sub-block offset: difference between true center and floored block pos
+        double offsetX = entityPos.x - entityBlockPos.getX();
+        double offsetY = entityPos.y - entityBlockPos.getY();
+        double offsetZ = entityPos.z - entityBlockPos.getZ();
 
         for (RenderType renderType : RENDER_TYPES) {
             if (Thread.currentThread().isInterrupted()) break;
 
-            // ByteBufferBuilder with initial capacity — expands as needed
             ByteBufferBuilder byteBuffer = new ByteBufferBuilder(renderType.bufferSize());
             BufferBuilder builder = new BufferBuilder(byteBuffer, VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
 
@@ -84,7 +86,9 @@ public class AssemblyBakedMesh {
                 if (!model.getRenderTypes(state, random, ModelData.EMPTY).contains(renderType)) continue;
 
                 PoseStack ps = new PoseStack();
-                ps.translate(pos.getX(), pos.getY(), pos.getZ());
+                // Translate by relative pos plus the fractional offset so the mesh
+                // aligns with the entity's exact floating-point position
+                ps.translate(pos.getX() - offsetX, pos.getY() - offsetY, pos.getZ() - offsetZ);
 
                 dispatcher.renderBatched(
                         state, pos, fakeLevel, ps,
@@ -105,7 +109,6 @@ public class AssemblyBakedMesh {
         return result;
     }
 
-    // Upload to GPU — must be called on render thread
     private void uploadMeshes(Map<RenderType, MeshData> meshes) {
         buffers.values().forEach(VertexBuffer::close);
         buffers.clear();
@@ -121,7 +124,6 @@ public class AssemblyBakedMesh {
         built = true;
     }
 
-    // Called every frame from renderer — uploads any pending async mesh
     public void tick() {
         Map<RenderType, MeshData> pending = pendingMeshes.getAndSet(null);
         if (pending != null) {

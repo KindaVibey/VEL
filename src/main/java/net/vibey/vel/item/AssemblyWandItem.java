@@ -63,10 +63,12 @@ public class AssemblyWandItem extends Item {
         if (entity == null) return InteractionResult.FAIL;
 
         entity.setAssembly(assembly);
-        double centerX = (min.getX() + max.getX() + 1) / 2.0;
-        double centerY = (min.getY() + max.getY() + 1) / 2.0;
-        double centerZ = (min.getZ() + max.getZ() + 1) / 2.0;
+
+        double centerX = min.getX() + (max.getX() - min.getX() + 1) / 2.0;
+        double centerY = min.getY() + (max.getY() - min.getY()) / 2.0;
+        double centerZ = min.getZ() + (max.getZ() - min.getZ() + 1) / 2.0;
         entity.setPos(centerX, centerY, centerZ);
+
         level.addFreshEntity(entity);
 
         PacketDistributor.sendToPlayersNear(

@@ -89,8 +89,6 @@ public class AssemblyEntity extends Entity {
 
         if (bakedMesh != null) bakedMesh.tick();
 
-        //if (tickCount % 5 != 0) return;
-
         if (cachedSamplePoints == null) {
             cachedSamplePoints = computeSamplePoints();
         }
@@ -102,7 +100,7 @@ public class AssemblyEntity extends Entity {
         for (BlockPos p : cachedSamplePoints) {
             BlockPos world = origin.offset(p);
             int blockLight = lightEngine.getLayerListener(LightLayer.BLOCK).getLightValue(world);
-            int skyLight = lightEngine.getLayerListener(LightLayer.SKY).getLightValue(world);
+            int skyLight   = lightEngine.getLayerListener(LightLayer.SKY).getLightValue(world);
             hash = hash * 31 + blockLight;
             hash = hash * 31 + skyLight;
         }
@@ -111,7 +109,7 @@ public class AssemblyEntity extends Entity {
         if (hash != lastLightHash) {
             lastLightHash = hash;
             if (bakedMesh != null) {
-                bakedMesh.buildAsync(assembly.getBlocks(), blockPosition());
+                bakedMesh.buildAsync(assembly.getBlocks(), position());
             }
         }
     }
@@ -151,7 +149,7 @@ public class AssemblyEntity extends Entity {
     public AssemblyBakedMesh getOrBuildMesh() {
         if (bakedMesh == null) bakedMesh = new AssemblyBakedMesh();
         if (!bakedMesh.isBuilt()) {
-            bakedMesh.buildSync(assembly.getBlocks(), blockPosition());
+            bakedMesh.buildSync(assembly.getBlocks(), position());
         }
         return bakedMesh;
     }
