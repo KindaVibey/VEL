@@ -23,7 +23,8 @@ public class AssemblyBakedMesh {
             RenderType.solid(),
             RenderType.cutout(),
             RenderType.cutoutMipped(),
-            RenderType.translucent()
+            RenderType.translucent(),
+            RenderType.translucentMovingBlock()
     );
 
     private static final ExecutorService MESH_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
@@ -59,13 +60,9 @@ public class AssemblyBakedMesh {
         BlockRenderDispatcher dispatcher = Minecraft.getInstance().getBlockRenderer();
         RandomSource random = RandomSource.create();
 
-        // Floor to get the origin block pos (matches Assembly.capture's origin calculation)
         BlockPos entityBlockPos = BlockPos.containing(entityPos);
         AssemblyFakeLevel fakeLevel = new AssemblyFakeLevel(blocks, entityBlockPos);
 
-        // The fractional part of the entity pos is already carried by the poseStack
-        // in draw(). We must subtract it from each block's translation here so blocks
-        // end up at their exact world positions and don't shift by the fractional amount.
         double fracX = entityPos.x - entityBlockPos.getX();
         double fracY = entityPos.y - entityBlockPos.getY();
         double fracZ = entityPos.z - entityBlockPos.getZ();
@@ -137,9 +134,6 @@ public class AssemblyBakedMesh {
     public void draw(PoseStack poseStack, Matrix4f projectionMatrix) {
         if (!built) return;
 
-        // poseStack already encodes (entityPos - cameraPos) including the fractional part.
-        // compileMeshes subtracts that fractional part from each block, so together
-        // every block lands exactly at its correct world position.
         Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix())
                 .mul(poseStack.last().pose());
 

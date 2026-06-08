@@ -24,7 +24,7 @@ public class Assembly {
         List<AssemblyBlock> blocks = new ArrayList<>();
 
         int originX = (int) Math.floor(min.getX() + (max.getX() - min.getX() + 1) / 2.0);
-        int originY = (int) Math.floor(min.getY() + (max.getY() - min.getY() + 1) / 2.0);
+        int originY = (int) Math.floor(min.getY() + (max.getY() - min.getY()) / 2.0);
         int originZ = (int) Math.floor(min.getZ() + (max.getZ() - min.getZ() + 1) / 2.0);
         BlockPos origin = new BlockPos(originX, originY, originZ);
 
