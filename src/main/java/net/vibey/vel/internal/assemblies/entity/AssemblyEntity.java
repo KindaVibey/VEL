@@ -108,9 +108,8 @@ public class AssemblyEntity extends Entity {
 
         if (hash != lastLightHash) {
             lastLightHash = hash;
-            if (bakedMesh != null) {
-                bakedMesh.buildAsync(assembly.getBlocks(), position());
-            }
+            if (bakedMesh == null) bakedMesh = new AssemblyBakedMesh();
+            bakedMesh.requestRebuild(assembly.getBlocks(), position());
         }
     }
 
@@ -147,9 +146,9 @@ public class AssemblyEntity extends Entity {
 
     @OnlyIn(Dist.CLIENT)
     public AssemblyBakedMesh getOrBuildMesh() {
-        if (bakedMesh == null) bakedMesh = new AssemblyBakedMesh();
-        if (!bakedMesh.isBuilt()) {
-            bakedMesh.buildSync(assembly.getBlocks(), position());
+        if (bakedMesh == null) {
+            bakedMesh = new AssemblyBakedMesh();
+            bakedMesh.requestRebuild(assembly.getBlocks(), position());
         }
         return bakedMesh;
     }

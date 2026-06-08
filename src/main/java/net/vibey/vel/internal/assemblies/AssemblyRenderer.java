@@ -28,13 +28,11 @@ public class AssemblyRenderer<T extends AssemblyEntity> extends EntityRenderer<T
     public void render(T entity, float entityYaw, float partialTick, PoseStack poseStack,
                        MultiBufferSource buffer, int packedLight) {
         AssemblyBakedMesh mesh = entity.getOrBuildMesh();
-        if (!mesh.isBuilt()) return;
 
-        if (buffer instanceof MultiBufferSource.BufferSource bs) {
-            bs.endBatch();
+        if (mesh.isBuilt()) {
+            mesh.draw(poseStack, RenderSystem.getProjectionMatrix());
         }
 
-        mesh.draw(poseStack, RenderSystem.getProjectionMatrix());
         super.render(entity, entityYaw, partialTick, poseStack, buffer, packedLight);
     }
 }

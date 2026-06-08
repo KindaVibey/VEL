@@ -23,42 +23,26 @@ public class AssemblyBakedMesh {
             RenderType.solid(),
             RenderType.cutout(),
             RenderType.cutoutMipped(),
-            RenderType.translucent(),
-            RenderType.translucentMovingBlock()
+            RenderType.translucent()
     );
 
-    private static final ExecutorService MESH_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "assembly-mesh-builder");
-        t.setDaemon(true);
-        t.setPriority(Thread.NORM_PRIORITY - 1);
-        return t;
-    });
+    private static final ExecutorService MESH_EXECUTOR = Executors.newFixedThreadPool(
+            Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4)),
+            r -> {
+                Thread t = new Thread(r, "assembly-mesh-builder");
+                t.setDaemon(true);
+                t.setPriority(Thread.NORM_PRIORITY - 2);
+                return t;
+            }
+    );
 
-    private Map<RenderType, VertexBuffer> buffers = new HashMap<>();
+    private final LinkedHashMap<RenderType, VertexBuffer> buffers = new LinkedHashMap<>();
     private final AtomicReference<Map<RenderType, MeshData>> pendingMeshes = new AtomicReference<>(null);
     private boolean built = false;
     private Future<?> pendingBuild = null;
 
-    public void buildSync(List<AssemblyBlock> blocks, Vec3 entityPos) {
-        if (built) dispose();
-        Map<RenderType, MeshData> meshes = compileMeshes(blocks, entityPos);
-        uploadMeshes(meshes);
-    }
-
-    public void buildAsync(List<AssemblyBlock> blocks, Vec3 entityPos) {
-        if (pendingBuild != null && !pendingBuild.isDone()) {
-            pendingBuild.cancel(true);
-        }
-        List<AssemblyBlock> snapshot = List.copyOf(blocks);
-        pendingBuild = MESH_EXECUTOR.submit(() -> {
-            Map<RenderType, MeshData> meshes = compileMeshes(snapshot, entityPos);
-            pendingMeshes.set(meshes);
-        });
-    }
-
-    private Map<RenderType, MeshData> compileMeshes(List<AssemblyBlock> blocks, Vec3 entityPos) {
-        BlockRenderDispatcher dispatcher = Minecraft.getInstance().getBlockRenderer();
-        RandomSource random = RandomSource.create();
+    public void requestRebuild(List<AssemblyBlock> blocks, Vec3 entityPos) {
+        if (blocks.isEmpty()) return;
 
         BlockPos entityBlockPos = BlockPos.containing(entityPos);
         AssemblyFakeLevel fakeLevel = new AssemblyFakeLevel(blocks, entityBlockPos);
@@ -67,13 +51,36 @@ public class AssemblyBakedMesh {
         double fracY = entityPos.y - entityBlockPos.getY();
         double fracZ = entityPos.z - entityBlockPos.getZ();
 
+        if (pendingBuild != null && !pendingBuild.isDone()) {
+            pendingBuild.cancel(true);
+        }
+
+        List<AssemblyBlock> snapshot = List.copyOf(blocks);
+
+        pendingBuild = MESH_EXECUTOR.submit(() -> {
+            Map<RenderType, MeshData> meshes = compileMeshes(
+                    snapshot, fakeLevel, fracX, fracY, fracZ
+            );
+            pendingMeshes.set(meshes);
+        });
+    }
+
+    private Map<RenderType, MeshData> compileMeshes(
+            List<AssemblyBlock> blocks,
+            AssemblyFakeLevel fakeLevel,
+            double fracX, double fracY, double fracZ) {
+
+        BlockRenderDispatcher dispatcher = Minecraft.getInstance().getBlockRenderer();
+        RandomSource random = RandomSource.create();
         Map<RenderType, MeshData> result = new LinkedHashMap<>();
 
         for (RenderType renderType : RENDER_TYPES) {
             if (Thread.currentThread().isInterrupted()) break;
 
             ByteBufferBuilder byteBuffer = new ByteBufferBuilder(renderType.bufferSize());
-            BufferBuilder builder = new BufferBuilder(byteBuffer, VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+            BufferBuilder builder = new BufferBuilder(
+                    byteBuffer, VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK
+            );
 
             boolean hasAny = false;
 
@@ -100,7 +107,11 @@ public class AssemblyBakedMesh {
 
             if (hasAny) {
                 MeshData mesh = builder.build();
-                if (mesh != null) result.put(renderType, mesh);
+                if (mesh != null) {
+                    result.put(renderType, mesh);
+                } else {
+                    byteBuffer.close();
+                }
             } else {
                 byteBuffer.close();
             }
@@ -109,7 +120,15 @@ public class AssemblyBakedMesh {
         return result;
     }
 
+    public void tick() {
+        Map<RenderType, MeshData> pending = pendingMeshes.getAndSet(null);
+        if (pending != null) {
+            uploadMeshes(pending);
+        }
+    }
+
     private void uploadMeshes(Map<RenderType, MeshData> meshes) {
+        // Free old GPU memory
         buffers.values().forEach(VertexBuffer::close);
         buffers.clear();
 
@@ -121,18 +140,11 @@ public class AssemblyBakedMesh {
             buffers.put(entry.getKey(), vb);
         }
 
-        built = true;
-    }
-
-    public void tick() {
-        Map<RenderType, MeshData> pending = pendingMeshes.getAndSet(null);
-        if (pending != null) {
-            uploadMeshes(pending);
-        }
+        built = !buffers.isEmpty();
     }
 
     public void draw(PoseStack poseStack, Matrix4f projectionMatrix) {
-        if (!built) return;
+        if (!built || buffers.isEmpty()) return;
 
         Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix())
                 .mul(poseStack.last().pose());
@@ -152,7 +164,9 @@ public class AssemblyBakedMesh {
     public boolean isBuilt() { return built; }
 
     public void dispose() {
-        if (pendingBuild != null) pendingBuild.cancel(true);
+        if (pendingBuild != null && !pendingBuild.isDone()) {
+            pendingBuild.cancel(true);
+        }
         buffers.values().forEach(VertexBuffer::close);
         buffers.clear();
         built = false;

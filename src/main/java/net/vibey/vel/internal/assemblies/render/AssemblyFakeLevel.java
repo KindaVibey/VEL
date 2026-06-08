@@ -16,21 +16,44 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.HashMap;
 
 public class AssemblyFakeLevel implements BlockAndTintGetter {
 
     private final Map<BlockPos, BlockState> blockMap;
+    private final Map<BlockPos, Integer> blockLightMap;
+    private final Map<BlockPos, Integer> skyLightMap;
     private final BlockPos entityPos;
+    private final net.minecraft.client.multiplayer.ClientLevel level;
 
     public AssemblyFakeLevel(List<AssemblyBlock> blocks, BlockPos entityPos) {
         this.entityPos = entityPos;
-        this.blockMap = blocks.stream()
-                .collect(Collectors.toMap(AssemblyBlock::relativePos, AssemblyBlock::state));
-    }
+        this.level = Minecraft.getInstance().level;
 
-    private BlockPos toWorld(BlockPos relativePos) {
-        return entityPos.offset(relativePos);
+        this.blockMap = new HashMap<>(blocks.size());
+        this.blockLightMap = new HashMap<>(blocks.size() * 2);
+        this.skyLightMap = new HashMap<>(blocks.size() * 2);
+
+        if (this.level == null) return;
+
+        for (AssemblyBlock block : blocks) {
+            BlockPos rel = block.relativePos();
+            this.blockMap.put(rel, block.state());
+
+            // Sample neighbors too for face culling and AO
+            for (Direction dir : Direction.values()) {
+                BlockPos neighbor = rel.relative(dir);
+                if (!blockLightMap.containsKey(neighbor)) {
+                    BlockPos world = entityPos.offset(neighbor);
+                    blockLightMap.put(neighbor, level.getBrightness(LightLayer.BLOCK, world));
+                    skyLightMap.put(neighbor, level.getBrightness(LightLayer.SKY, world));
+                }
+            }
+
+            BlockPos world = entityPos.offset(rel);
+            blockLightMap.put(rel, level.getBrightness(LightLayer.BLOCK, world));
+            skyLightMap.put(rel, level.getBrightness(LightLayer.SKY, world));
+        }
     }
 
     @Override
@@ -56,35 +79,35 @@ public class AssemblyFakeLevel implements BlockAndTintGetter {
 
     @Override
     public int getBrightness(LightLayer lightLayer, BlockPos pos) {
-        var level = Minecraft.getInstance().level;
-        if (level == null) return 0;
-        return level.getBrightness(lightLayer, toWorld(pos));
+        return switch (lightLayer) {
+            case BLOCK -> blockLightMap.getOrDefault(pos, 0);
+            case SKY -> skyLightMap.getOrDefault(pos, 0);
+        };
     }
 
     @Override
     public int getRawBrightness(BlockPos pos, int amount) {
-        var level = Minecraft.getInstance().level;
-        if (level == null) return 0;
-        return level.getRawBrightness(toWorld(pos), amount);
+        int block = blockLightMap.getOrDefault(pos, 0);
+        int sky = Math.max(0, skyLightMap.getOrDefault(pos, 0) - amount);
+        return Math.max(block, sky);
     }
 
     @Override
     public int getBlockTint(BlockPos pos, ColorResolver colorResolver) {
-        var level = Minecraft.getInstance().level;
         if (level == null) return -1;
-        return level.getBlockTint(toWorld(pos), colorResolver);
+        return level.getBlockTint(entityPos.offset(pos), colorResolver);
     }
 
     @Override
     public LevelLightEngine getLightEngine() {
-        return Minecraft.getInstance().level.getLightEngine();
+        return level.getLightEngine();
     }
 
     @Override
-    public int getHeight() { return 256; }
+    public int getHeight() { return level != null ? level.getHeight() : 256; }
 
     @Override
-    public int getMinBuildHeight() { return 0; }
+    public int getMinBuildHeight() { return level != null ? level.getMinBuildHeight() : 0; }
 
     @Nullable
     @Override
