@@ -2,7 +2,6 @@ package net.vibey.vel.internal.assemblies;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -12,7 +11,6 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.vibey.vel.internal.assemblies.entity.AssemblyEntity;
 import net.vibey.vel.internal.assemblies.render.AssemblyBakedMesh;
-import org.joml.Matrix4f;
 
 @OnlyIn(Dist.CLIENT)
 public class AssemblyRenderer<T extends AssemblyEntity> extends EntityRenderer<T> {
@@ -29,7 +27,6 @@ public class AssemblyRenderer<T extends AssemblyEntity> extends EntityRenderer<T
     @Override
     public void render(T entity, float entityYaw, float partialTick, PoseStack poseStack,
                        MultiBufferSource buffer, int packedLight) {
-
         AssemblyBakedMesh mesh = entity.getOrBuildMesh();
         if (!mesh.isBuilt()) return;
 
@@ -38,7 +35,6 @@ public class AssemblyRenderer<T extends AssemblyEntity> extends EntityRenderer<T
         }
 
         mesh.draw(poseStack, RenderSystem.getProjectionMatrix());
-
         super.render(entity, entityYaw, partialTick, poseStack, buffer, packedLight);
     }
 }

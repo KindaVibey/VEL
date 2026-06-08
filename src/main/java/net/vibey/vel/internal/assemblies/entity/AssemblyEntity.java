@@ -32,6 +32,15 @@ public class AssemblyEntity extends Entity {
         return this.assembly;
     }
 
+    public void setAssembly(Assembly assembly) {
+        this.assembly = assembly;
+        if (level().isClientSide()) {
+            cachedSamplePoints = null;
+            lastLightHash = 0;
+            if (bakedMesh != null) bakedMesh.dispose();
+        }
+    }
+
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {}
 
@@ -64,6 +73,9 @@ public class AssemblyEntity extends Entity {
     }
 
     @OnlyIn(Dist.CLIENT)
+    private AssemblyBakedMesh bakedMesh;
+
+    @OnlyIn(Dist.CLIENT)
     private int lastLightHash = 0;
 
     @OnlyIn(Dist.CLIENT)
@@ -74,6 +86,9 @@ public class AssemblyEntity extends Entity {
         super.tick();
         if (!level().isClientSide()) return;
         if (assembly == null || assembly.getBlocks().isEmpty()) return;
+
+        if (bakedMesh != null) bakedMesh.tick();
+
         //if (tickCount % 5 != 0) return;
 
         if (cachedSamplePoints == null) {
@@ -86,25 +101,25 @@ public class AssemblyEntity extends Entity {
         int hash = 0;
         for (BlockPos p : cachedSamplePoints) {
             BlockPos world = origin.offset(p);
-            // Sample block light and sky light separately
             int blockLight = lightEngine.getLayerListener(LightLayer.BLOCK).getLightValue(world);
             int skyLight = lightEngine.getLayerListener(LightLayer.SKY).getLightValue(world);
             hash = hash * 31 + blockLight;
             hash = hash * 31 + skyLight;
         }
-
-        // Also include time of day so dawn/dusk triggers a rebuild
-        hash = hash * 31 + (int)(level().getDayTime() / 1200); // changes every ~60 seconds
+        hash = hash * 31 + (int)(level().getDayTime() / 1200);
 
         if (hash != lastLightHash) {
-            System.out.println("Light changed, disposing mesh. block/sky now tracked separately.");
             lastLightHash = hash;
-            if (bakedMesh != null) bakedMesh.dispose();
+            if (bakedMesh != null) {
+                bakedMesh.buildAsync(assembly.getBlocks(), blockPosition());
+            }
         }
     }
 
     @OnlyIn(Dist.CLIENT)
     private List<BlockPos> computeSamplePoints() {
+        if (assembly.getBlocks().isEmpty()) return List.of(BlockPos.ZERO);
+
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
 
@@ -132,26 +147,12 @@ public class AssemblyEntity extends Entity {
         );
     }
 
-    // Client-only, not synced
-    @OnlyIn(Dist.CLIENT)
-    private AssemblyBakedMesh bakedMesh;
-
     @OnlyIn(Dist.CLIENT)
     public AssemblyBakedMesh getOrBuildMesh() {
         if (bakedMesh == null) bakedMesh = new AssemblyBakedMesh();
         if (!bakedMesh.isBuilt()) {
-            bakedMesh.build(assembly.getBlocks(), blockPosition());
+            bakedMesh.buildSync(assembly.getBlocks(), blockPosition());
         }
         return bakedMesh;
     }
-
-    public void setAssembly(Assembly assembly) {
-        this.assembly = assembly;
-        if (level().isClientSide()) {
-            cachedSamplePoints = null;
-            lastLightHash = 0;
-            if (bakedMesh != null) bakedMesh.dispose();
-        }
-    }
-
 }

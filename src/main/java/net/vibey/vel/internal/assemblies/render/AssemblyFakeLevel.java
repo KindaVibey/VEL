@@ -11,35 +11,26 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.material.FluidState;
+import net.vibey.vel.internal.assemblies.AssemblyBlock;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import net.vibey.vel.internal.assemblies.AssemblyBlock;
 
 public class AssemblyFakeLevel implements BlockAndTintGetter {
 
     private final Map<BlockPos, BlockState> blockMap;
-    // Store real-world position each relative pos maps to, for light + tint sampling
-    private final Map<BlockPos, BlockPos> relativeToWorld;
     private final BlockPos entityPos;
 
     public AssemblyFakeLevel(List<AssemblyBlock> blocks, BlockPos entityPos) {
         this.entityPos = entityPos;
         this.blockMap = blocks.stream()
                 .collect(Collectors.toMap(AssemblyBlock::relativePos, AssemblyBlock::state));
-        // Pre-compute world pos for each relative pos once
-        this.relativeToWorld = blocks.stream()
-                .collect(Collectors.toMap(
-                        AssemblyBlock::relativePos,
-                        b -> entityPos.offset(b.relativePos())
-                ));
     }
 
     private BlockPos toWorld(BlockPos relativePos) {
-        // For positions outside the assembly (neighbor lookups for AO), offset directly
-        return relativeToWorld.getOrDefault(relativePos, entityPos.offset(relativePos));
+        return entityPos.offset(relativePos);
     }
 
     @Override
@@ -54,7 +45,6 @@ public class AssemblyFakeLevel implements BlockAndTintGetter {
 
     @Override
     public float getShade(Direction direction, boolean shade) {
-        // Exactly match vanilla's directional shading values
         if (!shade) return 1.0f;
         return switch (direction) {
             case DOWN -> 0.5f;
@@ -68,7 +58,6 @@ public class AssemblyFakeLevel implements BlockAndTintGetter {
     public int getBrightness(LightLayer lightLayer, BlockPos pos) {
         var level = Minecraft.getInstance().level;
         if (level == null) return 0;
-        // Sample real light at the actual world position this block came from
         return level.getBrightness(lightLayer, toWorld(pos));
     }
 
@@ -83,7 +72,6 @@ public class AssemblyFakeLevel implements BlockAndTintGetter {
     public int getBlockTint(BlockPos pos, ColorResolver colorResolver) {
         var level = Minecraft.getInstance().level;
         if (level == null) return -1;
-        // Sample biome tint from real world position
         return level.getBlockTint(toWorld(pos), colorResolver);
     }
 
