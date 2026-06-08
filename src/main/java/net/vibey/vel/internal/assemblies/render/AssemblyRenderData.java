@@ -38,11 +38,15 @@ import java.util.concurrent.atomic.AtomicReference;
  * - Light is sampled once per rebuild, not every tick.
  * - The transform (position + rotation) is applied entirely at draw time
  *   via MODEL_VIEW_MATRIX, never baked into vertex data.
+ *
+ * Each AssemblyBlock stores its relative position as doubles (relX/Y/Z).
+ * The PoseStack translation uses these exact doubles so sub-block-grid
+ * positioning is preserved. Only light/face-culling queries use the floored
+ * relativeBlockPos() integer accessor.
  */
 @OnlyIn(Dist.CLIENT)
 public class AssemblyRenderData {
 
-    // Render types we care about, in draw order
     private static final List<RenderType> RENDER_TYPES = List.of(
             RenderType.solid(),
             RenderType.cutout(),
@@ -50,8 +54,6 @@ public class AssemblyRenderData {
             RenderType.translucent()
     );
 
-    // Shared thread pool across all assemblies — bounded to avoid
-    // thrashing on worlds with many assemblies
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(
             Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4)),
             r -> {
@@ -62,41 +64,22 @@ public class AssemblyRenderData {
             }
     );
 
-    // GPU buffers, one per render type, uploaded on the main thread
     private final Map<RenderType, VertexBuffer> buffers = new LinkedHashMap<>();
-
-    // Pending mesh data from the async compile, consumed on the main thread
-    // during tick()
     private final AtomicReference<CompileResult> pendingResult = new AtomicReference<>(null);
-
-    // The current async compile future so we can cancel stale work
     private Future<?> pendingFuture = null;
-
-    // Whether we have at least one valid uploaded buffer
     private boolean built = false;
-
-    // Block entities extracted during the last compile, for the renderer
-    // to pass to BlockEntityRenderDispatcher
     private List<BlockEntity> blockEntities = Collections.emptyList();
-
-    // The world-space origin used for the last light sample, so we can
-    // decide when light is stale enough to warrant a rebuild
     private BlockPos lastLightOrigin = null;
 
-    // How many blocks the assembly must move before we resample light.
-    // 4 blocks is a reasonable threshold — close enough to be accurate,
-    // far enough to avoid constant rebuilds while moving.
     private static final double LIGHT_RESAMPLE_DISTANCE_SQ = 4.0 * 4.0;
 
     // -------------------------------------------------------------------------
 
     /**
-     * Request an async rebuild of all geometry. Safe to call from any thread;
-     * the actual compile runs on EXECUTOR and the result is consumed on the
-     * main thread in tick().
+     * Request an async rebuild of all geometry.
      *
-     * @param blocks      the current assembly block list (will be snapshot'd)
-     * @param entityPos   the current world position of the assembly entity
+     * @param blocks    the current assembly block list (will be snapshot'd)
+     * @param entityPos the current world position of the assembly entity
      */
     public void requestRebuild(List<AssemblyBlock> blocks, Vec3 entityPos) {
         if (blocks.isEmpty()) {
@@ -104,12 +87,10 @@ public class AssemblyRenderData {
             return;
         }
 
-        // Cancel any in-progress compile — data would be stale anyway
         if (pendingFuture != null && !pendingFuture.isDone()) {
             pendingFuture.cancel(true);
         }
 
-        // Snapshot everything we need before handing off to the thread
         List<AssemblyBlock> snapshot = List.copyOf(blocks);
         BlockPos worldOrigin = BlockPos.containing(entityPos);
         lastLightOrigin = worldOrigin;
@@ -124,15 +105,8 @@ public class AssemblyRenderData {
     }
 
     /**
-     * Request a light-only refresh without rebuilding geometry. Much cheaper
-     * than a full rebuild — just resamples light and re-uploads the same
-     * vertex data with updated light values baked in.
-     *
-     * In practice, because light is baked into vertex data by the block
-     * renderer, we need to do a full geometry rebuild to update light.
-     * So this just triggers requestRebuild. If we were using a custom
-     * shader with a uniform for light we could skip the geometry rebuild,
-     * but that's out of scope.
+     * Request a light-only refresh without rebuilding geometry.
+     * Because light is baked into vertex data, this triggers a full rebuild.
      */
     public void requestLightRefresh(List<AssemblyBlock> blocks, Vec3 entityPos) {
         requestRebuild(blocks, entityPos);
@@ -149,10 +123,6 @@ public class AssemblyRenderData {
         }
     }
 
-    /**
-     * Check if the assembly has moved far enough from the last light sample
-     * position that we should trigger a light refresh rebuild.
-     */
     public boolean needsLightRefresh(Vec3 currentPos) {
         if (lastLightOrigin == null) return false;
         double dx = currentPos.x - lastLightOrigin.getX();
@@ -191,28 +161,26 @@ public class AssemblyRenderData {
                     return null;
                 }
 
-                BlockPos rel = ab.relativePos();
                 BlockState state = ab.state();
                 if (state.isAir()) continue;
 
-                // Check this block renders in this render type
                 RenderType blockRenderType = ItemBlockRenderTypes.getChunkRenderType(state);
                 if (blockRenderType != renderType) continue;
 
-                // Translate the PoseStack to the block's LOCAL position.
-                // This is the key: we translate by relativePos, NOT by
-                // relativePos + entityWorldPos. The world transform is
-                // applied at draw time.
+                // Translate by the exact double relative position so sub-block-grid
+                // offsets (e.g. 0.5, -0.5) are preserved perfectly. Only the
+                // floored relativeBlockPos() is used for light/face-culling queries
+                // inside the region.
                 PoseStack ps = new PoseStack();
-                ps.translate(rel.getX(), rel.getY(), rel.getZ());
+                ps.translate(ab.relX(), ab.relY(), ab.relZ());
 
                 dispatcher.renderBatched(
                         state,
-                        rel,       // position used for light lookup in region
+                        ab.relativeBlockPos(), // floored pos for light lookup in region
                         region,
                         ps,
                         builder,
-                        true,      // check sides (enables face culling)
+                        true,
                         random,
                         ModelData.EMPTY,
                         renderType
@@ -232,7 +200,6 @@ public class AssemblyRenderData {
             }
         }
 
-        // Collect block entities from the region
         bes.addAll(region.getBlockEntities().values());
 
         return new CompileResult(meshes, bes);
@@ -245,7 +212,6 @@ public class AssemblyRenderData {
     private void uploadResult(CompileResult result) {
         if (result == null) return;
 
-        // Free existing GPU buffers before replacing them
         buffers.values().forEach(VertexBuffer::close);
         buffers.clear();
 
@@ -269,29 +235,20 @@ public class AssemblyRenderData {
     // -------------------------------------------------------------------------
 
     /**
-     * Draw all opaque and cutout layers.
+     * Draw all geometry layers.
      *
      * The transform combines:
      *   RenderSystem.getModelViewMatrix()  — camera view
-     *   poseStackPose                       — entity position from the renderer
-     *   rotation                            — assembly rotation (Quaternionf)
+     *   poseStack.last().pose()            — entity position from the renderer
+     *   rotation                           — assembly rotation (Quaternionf)
      *
      * Geometry is in local space so this fully positions and rotates the mesh.
-     *
-     * //@param modelViewFromPoseStack the current model-view matrix as seen by
-     *                               the entity renderer (includes entity pos)
-     * @param projectionMatrix       the projection matrix
-     * @param rotation               the assembly's current rotation quaternion
-     *                               (identity if no rotation yet)
      */
     public void draw(PoseStack poseStack,
                      Matrix4f projectionMatrix,
                      Quaternionf rotation) {
         if (!built || buffers.isEmpty()) return;
 
-        // RenderSystem.getModelViewMatrix() is the view matrix (camera transform)
-        // poseStack.last().pose() is the entity local transform (entity pos relative to camera)
-        // We need both, but separately — view * local * rotation
         Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix())
                 .mul(poseStack.last().pose())
                 .rotate(rotation);

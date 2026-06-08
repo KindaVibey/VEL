@@ -1,5 +1,4 @@
-// AssemblyEntity.java  (modified — clean up tick, add rotation field,
-//                       expose getRenderData())
+// AssemblyEntity.java
 package net.vibey.vel.internal.assemblies.entity;
 
 import net.minecraft.core.BlockPos;
@@ -25,20 +24,13 @@ public class AssemblyEntity extends Entity {
 
     private Assembly assembly = new Assembly(new ArrayList<>());
 
-    // -----------------------------------------------------------------------
-    // Rotation — currently identity. Replace with your physics/rotation
-    // logic when you add it. The renderer reads this each frame so you
-    // just need to update this field.
-    // -----------------------------------------------------------------------
-    private final Quaternionf assemblyRotation = new Quaternionf(); // identity
+    // Rotation — currently identity. Replace with physics/rotation logic
+    // when implemented. The renderer reads this each frame.
+    private final Quaternionf assemblyRotation = new Quaternionf();
 
-    // -----------------------------------------------------------------------
-    // Client-side render data. @OnlyIn so it doesn't exist on the server.
-    // -----------------------------------------------------------------------
     @OnlyIn(Dist.CLIENT)
     private AssemblyRenderData renderData;
 
-    // Track last rebuild position so we know when to do a light refresh.
     @OnlyIn(Dist.CLIENT)
     private BlockPos lastRebuildPos;
 
@@ -71,10 +63,6 @@ public class AssemblyEntity extends Entity {
         return assemblyRotation;
     }
 
-    /**
-     * Set the assembly rotation. Call this from your physics/input logic
-     * when rotation is implemented.
-     */
     public void setAssemblyRotation(Quaternionf rotation) {
         this.assemblyRotation.set(rotation);
     }
@@ -90,14 +78,10 @@ public class AssemblyEntity extends Entity {
         if (!level().isClientSide()) return;
         if (assembly == null || assembly.getBlocks().isEmpty()) return;
 
-        // Let the render data upload any pending compiled meshes
         if (renderData != null) {
             renderData.tick();
         }
 
-        // Check if we need a light refresh due to movement.
-        // This is cheap (just a distance check) and only triggers a rebuild
-        // when the assembly has moved far enough that the baked light is stale.
         if (renderData != null && renderData.isBuilt()) {
             if (renderData.needsLightRefresh(position())) {
                 renderData.requestLightRefresh(assembly.getBlocks(), position());
@@ -120,22 +104,14 @@ public class AssemblyEntity extends Entity {
         }
     }
 
-    /**
-     * Called by the renderer each frame. Returns null if not yet initialised.
-     */
     @OnlyIn(Dist.CLIENT)
     public AssemblyRenderData getRenderData() {
-        // Lazily initialise on first access (handles the case where setAssembly
-        // was called before the client was ready)
         if (renderData == null && assembly != null && !assembly.getBlocks().isEmpty()) {
             scheduleFullRebuild();
         }
         return renderData;
     }
 
-    /**
-     * Clean up GPU resources when the entity is removed.
-     */
     @Override
     public void onRemovedFromLevel() {
         super.onRemovedFromLevel();
@@ -157,7 +133,10 @@ public class AssemblyEntity extends Entity {
         ListTag list = new ListTag();
         for (AssemblyBlock block : assembly.getBlocks()) {
             CompoundTag entry = new CompoundTag();
-            entry.put("pos", NbtUtils.writeBlockPos(block.relativePos()));
+            // Store double relative coords since AssemblyBlock no longer uses BlockPos
+            entry.putDouble("relX", block.relX());
+            entry.putDouble("relY", block.relY());
+            entry.putDouble("relZ", block.relZ());
             entry.put("state", NbtUtils.writeBlockState(block.state()));
             list.add(entry);
         }
@@ -170,13 +149,15 @@ public class AssemblyEntity extends Entity {
         ListTag list = tag.getList("blocks", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);
-            BlockPos pos = NbtUtils.readBlockPos(entry, "pos").orElse(BlockPos.ZERO);
+            double relX = entry.getDouble("relX");
+            double relY = entry.getDouble("relY");
+            double relZ = entry.getDouble("relZ");
             var state = NbtUtils.readBlockState(
                     level().registryAccess().lookupOrThrow(
                             net.minecraft.core.registries.Registries.BLOCK),
                     entry.getCompound("state")
             );
-            blocks.add(new AssemblyBlock(pos, state));
+            blocks.add(new AssemblyBlock(relX, relY, relZ, state));
         }
         this.assembly = new Assembly(blocks);
         if (level().isClientSide()) {

@@ -68,6 +68,8 @@ public class AssemblyRenderer<T extends AssemblyEntity> extends EntityRenderer<T
         // When you add rotation to AssemblyEntity, replace this.
         Quaternionf rotation = entity.getAssemblyRotation();
 
+        // In AssemblyRenderer.render():
+        Assembly assembly = entity.getAssembly();
         data.draw(poseStack, RenderSystem.getProjectionMatrix(), entity.getAssemblyRotation());
 
         // ----------------------------------------------------------------

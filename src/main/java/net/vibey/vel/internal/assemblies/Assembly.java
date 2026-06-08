@@ -23,19 +23,22 @@ public class Assembly {
     public static Assembly capture(Level level, BlockPos min, BlockPos max) {
         List<AssemblyBlock> blocks = new ArrayList<>();
 
-        // True floating point center of the selection
-        double centerX = min.getX() + (max.getX() - min.getX()) / 2.0;
+        // True floating point center of the selection (each axis spans
+        // from min to max+1, so the center is min + (size / 2.0))
+        double centerX = min.getX() + (max.getX() - min.getX() + 1) / 2.0;
         double centerY = min.getY() + (max.getY() - min.getY() + 1) / 2.0;
-        double centerZ = min.getZ() + (max.getZ() - min.getZ()) / 2.0;
+        double centerZ = min.getZ() + (max.getZ() - min.getZ() + 1) / 2.0;
 
         for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
             BlockState state = level.getBlockState(pos);
             if (!state.isAir()) {
-                // Round to nearest integer offset from the float center
-                int rx = (int) Math.floor(pos.getX() - centerX);
-                int ry = (int) Math.floor(pos.getY() - centerY + 0.5);
-                int rz = (int) Math.floor(pos.getZ() - centerZ);
-                blocks.add(new AssemblyBlock(new BlockPos(rx, ry, rz), state));
+                // +0.5 treats each block at its own center, not its corner.
+                // This ensures symmetry regardless of even/odd dimension counts
+                // and avoids the half-block offset caused by int truncation.
+                double rx = pos.getX() - centerX;
+                double ry = pos.getY() + 0.5 - centerY;
+                double rz = pos.getZ() - centerZ;
+                blocks.add(new AssemblyBlock(rx, ry, rz, state));
             }
         }
 
