@@ -22,47 +22,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * A fake BlockAndTintGetter for assembly rendering.
- *
- * Key improvements over the old AssemblyFakeLevel:
- * - 1-block border padding on all sides so AO and face culling work correctly
- *   for blocks at the edge of the assembly
- * - Light is sampled once at construction time from the real world at the
- *   assembly's current world position, then baked in — no per-tick sampling
- * - Block entities are collected here so the renderer can draw them
- * - getBlockTint delegates to the real world at the assembly's world position
- *   so biome-tinted blocks (grass, leaves, water) tint correctly
- *
- * Block map keys are floored BlockPos values derived from each AssemblyBlock's
- * double relative coordinates via relativeBlockPos().
- */
 @OnlyIn(Dist.CLIENT)
 public class AssemblyRenderRegion implements BlockAndTintGetter {
 
-    // All block states in the assembly, keyed by floored relative BlockPos
     private final Map<BlockPos, BlockState> blockMap;
 
-    // Packed light values sampled from the real world
     private final Map<BlockPos, Integer> blockLight;
     private final Map<BlockPos, Integer> skyLight;
 
-    // Block entities collected during construction, stored by relative pos.
     private final Map<BlockPos, BlockEntity> blockEntities;
 
-    // The world position of the assembly origin, used for light sampling
-    // and biome tint lookups.
     private final BlockPos worldOrigin;
     private final ClientLevel level;
 
-    /**
-     * Build a render region from a list of assembly blocks.
-     *
-     * @param blocks      the assembly blocks (double relative positions + states)
-     * @param worldOrigin the block position in the real world corresponding
-     *                    to relative (0,0,0) — i.e. the assembly entity's
-     *                    block position
-     */
     public AssemblyRenderRegion(List<AssemblyBlock> blocks, BlockPos worldOrigin) {
         this.worldOrigin = worldOrigin;
         this.level = Minecraft.getInstance().level;
@@ -75,12 +47,10 @@ public class AssemblyRenderRegion implements BlockAndTintGetter {
 
         if (this.level == null) return;
 
-        // First pass: populate the block map using floored relative BlockPos
         for (AssemblyBlock ab : blocks) {
             blockMap.put(ab.relativeBlockPos(), ab.state());
         }
 
-        // Second pass: sample light for every block AND its 6 neighbors.
         for (AssemblyBlock ab : blocks) {
             BlockPos rel = ab.relativeBlockPos();
 
@@ -90,7 +60,6 @@ public class AssemblyRenderRegion implements BlockAndTintGetter {
                 sampleLightAt(rel.relative(dir));
             }
 
-            // Collect block entity if this block has one.
             if (ab.state().hasBlockEntity()) {
                 BlockEntity be = createBlockEntity(rel, ab.state());
                 if (be != null) {
@@ -100,10 +69,6 @@ public class AssemblyRenderRegion implements BlockAndTintGetter {
         }
     }
 
-    /**
-     * Sample block and sky light at a relative position by mapping it to
-     * the real world and asking the real light engine.
-     */
     private void sampleLightAt(BlockPos rel) {
         if (blockLight.containsKey(rel)) return;
 
@@ -112,10 +77,6 @@ public class AssemblyRenderRegion implements BlockAndTintGetter {
         skyLight.put(rel,   level.getBrightness(LightLayer.SKY,   world));
     }
 
-    /**
-     * Attempt to create a block entity for a given relative position and state.
-     * This is what makes chests, beds, banners, etc. render correctly.
-     */
     @Nullable
     private BlockEntity createBlockEntity(BlockPos relPos, BlockState state) {
         try {
@@ -126,10 +87,6 @@ public class AssemblyRenderRegion implements BlockAndTintGetter {
             return null;
         }
     }
-
-    // -------------------------------------------------------------------------
-    // BlockAndTintGetter implementation
-    // -------------------------------------------------------------------------
 
     @Override
     public BlockState getBlockState(BlockPos pos) {
@@ -194,10 +151,6 @@ public class AssemblyRenderRegion implements BlockAndTintGetter {
         return blockEntities.get(pos);
     }
 
-    // -------------------------------------------------------------------------
-    // Accessors for the compiler / renderer
-    // -------------------------------------------------------------------------
-
     public Map<BlockPos, BlockState> getBlockMap() {
         return blockMap;
     }
@@ -206,10 +159,6 @@ public class AssemblyRenderRegion implements BlockAndTintGetter {
         return blockEntities;
     }
 
-    /**
-     * Refresh light data from the real world. Called when the assembly moves
-     * far enough that the sampled light is stale.
-     */
     public void refreshLight(BlockPos newWorldOrigin) {
         blockLight.clear();
         skyLight.clear();

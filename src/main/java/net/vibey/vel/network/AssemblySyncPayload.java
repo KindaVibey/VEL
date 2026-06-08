@@ -25,8 +25,6 @@ public record AssemblySyncPayload(int entityId, CompoundTag assemblyNbt) impleme
         ListTag list = new ListTag();
         for (AssemblyBlock block : blocks) {
             CompoundTag entry = new CompoundTag();
-            // Store exact double offsets — not floored BlockPos — so the
-            // half-block centering is preserved across the network.
             entry.putDouble("relX", block.relX());
             entry.putDouble("relY", block.relY());
             entry.putDouble("relZ", block.relZ());

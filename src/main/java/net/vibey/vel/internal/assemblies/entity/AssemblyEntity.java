@@ -24,8 +24,6 @@ public class AssemblyEntity extends Entity {
 
     private Assembly assembly = new Assembly(new ArrayList<>());
 
-    // Rotation — currently identity. Replace with physics/rotation logic
-    // when implemented. The renderer reads this each frame.
     private final Quaternionf assemblyRotation = new Quaternionf();
 
     @OnlyIn(Dist.CLIENT)
@@ -40,10 +38,6 @@ public class AssemblyEntity extends Entity {
         this.noPhysics = true;
     }
 
-    // -----------------------------------------------------------------------
-    // Assembly data
-    // -----------------------------------------------------------------------
-
     public Assembly getAssembly() {
         return assembly;
     }
@@ -55,10 +49,6 @@ public class AssemblyEntity extends Entity {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Rotation accessor (renderer uses this)
-    // -----------------------------------------------------------------------
-
     public Quaternionf getAssemblyRotation() {
         return assemblyRotation;
     }
@@ -66,10 +56,6 @@ public class AssemblyEntity extends Entity {
     public void setAssemblyRotation(Quaternionf rotation) {
         this.assemblyRotation.set(rotation);
     }
-
-    // -----------------------------------------------------------------------
-    // Tick — client side only, drives the render data lifecycle
-    // -----------------------------------------------------------------------
 
     @Override
     public void tick() {
@@ -88,10 +74,6 @@ public class AssemblyEntity extends Entity {
             }
         }
     }
-
-    // -----------------------------------------------------------------------
-    // Render data lifecycle (client only)
-    // -----------------------------------------------------------------------
 
     @OnlyIn(Dist.CLIENT)
     private void scheduleFullRebuild() {
@@ -121,10 +103,6 @@ public class AssemblyEntity extends Entity {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Entity boilerplate
-    // -----------------------------------------------------------------------
-
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {}
 
@@ -133,7 +111,6 @@ public class AssemblyEntity extends Entity {
         ListTag list = new ListTag();
         for (AssemblyBlock block : assembly.getBlocks()) {
             CompoundTag entry = new CompoundTag();
-            // Store double relative coords since AssemblyBlock no longer uses BlockPos
             entry.putDouble("relX", block.relX());
             entry.putDouble("relY", block.relY());
             entry.putDouble("relZ", block.relZ());

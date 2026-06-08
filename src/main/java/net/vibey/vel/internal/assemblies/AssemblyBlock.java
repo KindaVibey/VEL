@@ -9,7 +9,6 @@ public record AssemblyBlock(
         double relZ,
         BlockState state
 ) {
-    /** Convenience: get the floored BlockPos for light sampling, block maps, etc. */
     public BlockPos relativeBlockPos() {
         return new BlockPos(
                 (int) Math.floor(relX),

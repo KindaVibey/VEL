@@ -23,27 +23,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * Manages the GPU-side mesh data for a single AssemblyEntity.
- *
- * Design goals:
- * - Geometry is baked in LOCAL space (relative to assembly origin).
- *   No world position is baked in. This means rotation works correctly
- *   at draw time by just changing the model-view matrix.
- * - Section-based: blocks are grouped into 16³ sections. Only dirty
- *   sections are rebuilt. For most assemblies this doesn't matter much
- *   (small structures), but for large ones it avoids full rebuilds on
- *   light changes.
- * - Block entities are collected and exposed to the renderer separately.
- * - Light is sampled once per rebuild, not every tick.
- * - The transform (position + rotation) is applied entirely at draw time
- *   via MODEL_VIEW_MATRIX, never baked into vertex data.
- *
- * Each AssemblyBlock stores its relative position as doubles (relX/Y/Z).
- * The PoseStack translation uses these exact doubles so sub-block-grid
- * positioning is preserved. Only light/face-culling queries use the floored
- * relativeBlockPos() integer accessor.
- */
 @OnlyIn(Dist.CLIENT)
 public class AssemblyRenderData {
 
@@ -73,14 +52,6 @@ public class AssemblyRenderData {
 
     private static final double LIGHT_RESAMPLE_DISTANCE_SQ = 4.0 * 4.0;
 
-    // -------------------------------------------------------------------------
-
-    /**
-     * Request an async rebuild of all geometry.
-     *
-     * @param blocks    the current assembly block list (will be snapshot'd)
-     * @param entityPos the current world position of the assembly entity
-     */
     public void requestRebuild(List<AssemblyBlock> blocks, Vec3 entityPos) {
         if (blocks.isEmpty()) {
             dispose();
@@ -104,18 +75,10 @@ public class AssemblyRenderData {
         });
     }
 
-    /**
-     * Request a light-only refresh without rebuilding geometry.
-     * Because light is baked into vertex data, this triggers a full rebuild.
-     */
     public void requestLightRefresh(List<AssemblyBlock> blocks, Vec3 entityPos) {
         requestRebuild(blocks, entityPos);
     }
 
-    /**
-     * Must be called on the main (render) thread each frame. Consumes any
-     * pending compile result and uploads it to the GPU.
-     */
     public void tick() {
         CompileResult result = pendingResult.getAndSet(null);
         if (result != null) {
@@ -130,10 +93,6 @@ public class AssemblyRenderData {
         double dz = currentPos.z - lastLightOrigin.getZ();
         return (dx * dx + dy * dy + dz * dz) > LIGHT_RESAMPLE_DISTANCE_SQ;
     }
-
-    // -------------------------------------------------------------------------
-    // Compilation (runs on EXECUTOR thread)
-    // -------------------------------------------------------------------------
 
     private static CompileResult compile(List<AssemblyBlock> blocks,
                                          AssemblyRenderRegion region) {
@@ -167,16 +126,12 @@ public class AssemblyRenderData {
                 RenderType blockRenderType = ItemBlockRenderTypes.getChunkRenderType(state);
                 if (blockRenderType != renderType) continue;
 
-                // Translate by the exact double relative position so sub-block-grid
-                // offsets (e.g. 0.5, -0.5) are preserved perfectly. Only the
-                // floored relativeBlockPos() is used for light/face-culling queries
-                // inside the region.
                 PoseStack ps = new PoseStack();
                 ps.translate(ab.relX(), ab.relY(), ab.relZ());
 
                 dispatcher.renderBatched(
                         state,
-                        ab.relativeBlockPos(), // floored pos for light lookup in region
+                        ab.relativeBlockPos(),
                         region,
                         ps,
                         builder,
@@ -205,10 +160,6 @@ public class AssemblyRenderData {
         return new CompileResult(meshes, bes);
     }
 
-    // -------------------------------------------------------------------------
-    // Upload (main thread)
-    // -------------------------------------------------------------------------
-
     private void uploadResult(CompileResult result) {
         if (result == null) return;
 
@@ -230,20 +181,6 @@ public class AssemblyRenderData {
         built = !buffers.isEmpty();
     }
 
-    // -------------------------------------------------------------------------
-    // Draw (main thread, called from AssemblyRenderer)
-    // -------------------------------------------------------------------------
-
-    /**
-     * Draw all geometry layers.
-     *
-     * The transform combines:
-     *   RenderSystem.getModelViewMatrix()  — camera view
-     *   poseStack.last().pose()            — entity position from the renderer
-     *   rotation                           — assembly rotation (Quaternionf)
-     *
-     * Geometry is in local space so this fully positions and rotates the mesh.
-     */
     public void draw(PoseStack poseStack,
                      Matrix4f projectionMatrix,
                      Quaternionf rotation) {
@@ -265,18 +202,10 @@ public class AssemblyRenderData {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Accessors
-    // -------------------------------------------------------------------------
-
     public boolean isBuilt() { return built; }
 
     public List<BlockEntity> getBlockEntities() { return blockEntities; }
 
-    /**
-     * Free all GPU resources and cancel any pending async work.
-     * Must be called when the entity is removed.
-     */
     public void dispose() {
         if (pendingFuture != null && !pendingFuture.isDone()) {
             pendingFuture.cancel(true);
@@ -286,10 +215,6 @@ public class AssemblyRenderData {
         built = false;
         blockEntities = Collections.emptyList();
     }
-
-    // -------------------------------------------------------------------------
-    // Internal types
-    // -------------------------------------------------------------------------
 
     private record CompileResult(
             Map<RenderType, MeshData> meshes,
