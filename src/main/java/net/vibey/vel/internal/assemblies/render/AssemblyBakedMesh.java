@@ -58,14 +58,19 @@ public class AssemblyBakedMesh {
     private Map<RenderType, MeshData> compileMeshes(List<AssemblyBlock> blocks, Vec3 entityPos) {
         BlockRenderDispatcher dispatcher = Minecraft.getInstance().getBlockRenderer();
         RandomSource random = RandomSource.create();
-        BlockPos entityBlockPos = new BlockPos((int) Math.floor(entityPos.x), (int) Math.floor(entityPos.y), (int) Math.floor(entityPos.z));
-        AssemblyFakeLevel fakeLevel = new AssemblyFakeLevel(blocks, entityBlockPos);
-        Map<RenderType, MeshData> result = new LinkedHashMap<>();
 
-        // Sub-block offset: difference between true center and floored block pos
-        double offsetX = entityPos.x - entityBlockPos.getX();
-        double offsetY = entityPos.y - entityBlockPos.getY();
-        double offsetZ = entityPos.z - entityBlockPos.getZ();
+        // Floor to get the origin block pos (matches Assembly.capture's origin calculation)
+        BlockPos entityBlockPos = BlockPos.containing(entityPos);
+        AssemblyFakeLevel fakeLevel = new AssemblyFakeLevel(blocks, entityBlockPos);
+
+        // The fractional part of the entity pos is already carried by the poseStack
+        // in draw(). We must subtract it from each block's translation here so blocks
+        // end up at their exact world positions and don't shift by the fractional amount.
+        double fracX = entityPos.x - entityBlockPos.getX();
+        double fracY = entityPos.y - entityBlockPos.getY();
+        double fracZ = entityPos.z - entityBlockPos.getZ();
+
+        Map<RenderType, MeshData> result = new LinkedHashMap<>();
 
         for (RenderType renderType : RENDER_TYPES) {
             if (Thread.currentThread().isInterrupted()) break;
@@ -86,9 +91,7 @@ public class AssemblyBakedMesh {
                 if (!model.getRenderTypes(state, random, ModelData.EMPTY).contains(renderType)) continue;
 
                 PoseStack ps = new PoseStack();
-                // Translate by relative pos plus the fractional offset so the mesh
-                // aligns with the entity's exact floating-point position
-                ps.translate(pos.getX() - offsetX, pos.getY() - offsetY, pos.getZ() - offsetZ);
+                ps.translate(pos.getX() - fracX, pos.getY() - fracY, pos.getZ() - fracZ);
 
                 dispatcher.renderBatched(
                         state, pos, fakeLevel, ps,
@@ -134,6 +137,9 @@ public class AssemblyBakedMesh {
     public void draw(PoseStack poseStack, Matrix4f projectionMatrix) {
         if (!built) return;
 
+        // poseStack already encodes (entityPos - cameraPos) including the fractional part.
+        // compileMeshes subtracts that fractional part from each block, so together
+        // every block lands exactly at its correct world position.
         Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix())
                 .mul(poseStack.last().pose());
 
