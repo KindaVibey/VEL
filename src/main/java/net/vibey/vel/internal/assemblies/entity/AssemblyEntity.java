@@ -1,3 +1,5 @@
+// AssemblyEntity.java  (modified — clean up tick, add rotation field,
+//                       expose getRenderData())
 package net.vibey.vel.internal.assemblies.entity;
 
 import net.minecraft.core.BlockPos;
@@ -9,18 +11,36 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LightLayer;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.vibey.vel.internal.assemblies.Assembly;
 import net.vibey.vel.internal.assemblies.AssemblyBlock;
-import net.vibey.vel.internal.assemblies.render.AssemblyBakedMesh;
+import net.vibey.vel.internal.assemblies.render.AssemblyRenderData;
+import org.joml.Quaternionf;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class AssemblyEntity extends Entity {
+
     private Assembly assembly = new Assembly(new ArrayList<>());
+
+    // -----------------------------------------------------------------------
+    // Rotation — currently identity. Replace with your physics/rotation
+    // logic when you add it. The renderer reads this each frame so you
+    // just need to update this field.
+    // -----------------------------------------------------------------------
+    private final Quaternionf assemblyRotation = new Quaternionf(); // identity
+
+    // -----------------------------------------------------------------------
+    // Client-side render data. @OnlyIn so it doesn't exist on the server.
+    // -----------------------------------------------------------------------
+    @OnlyIn(Dist.CLIENT)
+    private AssemblyRenderData renderData;
+
+    // Track last rebuild position so we know when to do a light refresh.
+    @OnlyIn(Dist.CLIENT)
+    private BlockPos lastRebuildPos;
 
     public AssemblyEntity(EntityType<? extends AssemblyEntity> type, Level level) {
         super(type, level);
@@ -28,18 +48,106 @@ public class AssemblyEntity extends Entity {
         this.noPhysics = true;
     }
 
+    // -----------------------------------------------------------------------
+    // Assembly data
+    // -----------------------------------------------------------------------
+
     public Assembly getAssembly() {
-        return this.assembly;
+        return assembly;
     }
 
     public void setAssembly(Assembly assembly) {
         this.assembly = assembly;
         if (level().isClientSide()) {
-            cachedSamplePoints = null;
-            lastLightHash = 0;
-            if (bakedMesh != null) bakedMesh.dispose();
+            scheduleFullRebuild();
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Rotation accessor (renderer uses this)
+    // -----------------------------------------------------------------------
+
+    public Quaternionf getAssemblyRotation() {
+        return assemblyRotation;
+    }
+
+    /**
+     * Set the assembly rotation. Call this from your physics/input logic
+     * when rotation is implemented.
+     */
+    public void setAssemblyRotation(Quaternionf rotation) {
+        this.assemblyRotation.set(rotation);
+    }
+
+    // -----------------------------------------------------------------------
+    // Tick — client side only, drives the render data lifecycle
+    // -----------------------------------------------------------------------
+
+    @Override
+    public void tick() {
+        super.tick();
+
+        if (!level().isClientSide()) return;
+        if (assembly == null || assembly.getBlocks().isEmpty()) return;
+
+        // Let the render data upload any pending compiled meshes
+        if (renderData != null) {
+            renderData.tick();
+        }
+
+        // Check if we need a light refresh due to movement.
+        // This is cheap (just a distance check) and only triggers a rebuild
+        // when the assembly has moved far enough that the baked light is stale.
+        if (renderData != null && renderData.isBuilt()) {
+            if (renderData.needsLightRefresh(position())) {
+                renderData.requestLightRefresh(assembly.getBlocks(), position());
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Render data lifecycle (client only)
+    // -----------------------------------------------------------------------
+
+    @OnlyIn(Dist.CLIENT)
+    private void scheduleFullRebuild() {
+        if (renderData == null) {
+            renderData = new AssemblyRenderData();
+        }
+        if (assembly != null && !assembly.getBlocks().isEmpty()) {
+            renderData.requestRebuild(assembly.getBlocks(), position());
+            lastRebuildPos = blockPosition();
+        }
+    }
+
+    /**
+     * Called by the renderer each frame. Returns null if not yet initialised.
+     */
+    @OnlyIn(Dist.CLIENT)
+    public AssemblyRenderData getRenderData() {
+        // Lazily initialise on first access (handles the case where setAssembly
+        // was called before the client was ready)
+        if (renderData == null && assembly != null && !assembly.getBlocks().isEmpty()) {
+            scheduleFullRebuild();
+        }
+        return renderData;
+    }
+
+    /**
+     * Clean up GPU resources when the entity is removed.
+     */
+    @Override
+    public void onRemovedFromLevel() {
+        super.onRemovedFromLevel();
+        if (level().isClientSide() && renderData != null) {
+            renderData.dispose();
+            renderData = null;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Entity boilerplate
+    // -----------------------------------------------------------------------
 
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {}
@@ -64,92 +172,15 @@ public class AssemblyEntity extends Entity {
             CompoundTag entry = list.getCompound(i);
             BlockPos pos = NbtUtils.readBlockPos(entry, "pos").orElse(BlockPos.ZERO);
             var state = NbtUtils.readBlockState(
-                    level().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BLOCK),
+                    level().registryAccess().lookupOrThrow(
+                            net.minecraft.core.registries.Registries.BLOCK),
                     entry.getCompound("state")
             );
             blocks.add(new AssemblyBlock(pos, state));
         }
         this.assembly = new Assembly(blocks);
-    }
-
-    @OnlyIn(Dist.CLIENT)
-    private AssemblyBakedMesh bakedMesh;
-
-    @OnlyIn(Dist.CLIENT)
-    private int lastLightHash = 0;
-
-    @OnlyIn(Dist.CLIENT)
-    private List<BlockPos> cachedSamplePoints = null;
-
-    @Override
-    public void tick() {
-        super.tick();
-        if (!level().isClientSide()) return;
-        if (assembly == null || assembly.getBlocks().isEmpty()) return;
-
-        if (bakedMesh != null) bakedMesh.tick();
-
-        if (cachedSamplePoints == null) {
-            cachedSamplePoints = computeSamplePoints();
+        if (level().isClientSide()) {
+            scheduleFullRebuild();
         }
-
-        var lightEngine = level().getLightEngine();
-        BlockPos origin = blockPosition();
-
-        int hash = 0;
-        for (BlockPos p : cachedSamplePoints) {
-            BlockPos world = origin.offset(p);
-            int blockLight = lightEngine.getLayerListener(LightLayer.BLOCK).getLightValue(world);
-            int skyLight   = lightEngine.getLayerListener(LightLayer.SKY).getLightValue(world);
-            hash = hash * 31 + blockLight;
-            hash = hash * 31 + skyLight;
-        }
-        hash = hash * 31 + (int)(level().getDayTime() / 1200);
-
-        if (hash != lastLightHash) {
-            lastLightHash = hash;
-            if (bakedMesh == null) bakedMesh = new AssemblyBakedMesh();
-            bakedMesh.requestRebuild(assembly.getBlocks(), position());
-        }
-    }
-
-    @OnlyIn(Dist.CLIENT)
-    private List<BlockPos> computeSamplePoints() {
-        if (assembly.getBlocks().isEmpty()) return List.of(BlockPos.ZERO);
-
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-
-        for (AssemblyBlock b : assembly.getBlocks()) {
-            BlockPos p = b.relativePos();
-            minX = Math.min(minX, p.getX()); maxX = Math.max(maxX, p.getX());
-            minY = Math.min(minY, p.getY()); maxY = Math.max(maxY, p.getY());
-            minZ = Math.min(minZ, p.getZ()); maxZ = Math.max(maxZ, p.getZ());
-        }
-
-        int midX = (minX + maxX) / 2;
-        int midY = (minY + maxY) / 2;
-        int midZ = (minZ + maxZ) / 2;
-
-        return List.of(
-                new BlockPos(minX, minY, minZ),
-                new BlockPos(maxX, minY, minZ),
-                new BlockPos(minX, maxY, minZ),
-                new BlockPos(minX, minY, maxZ),
-                new BlockPos(maxX, maxY, maxZ),
-                new BlockPos(minX, maxY, maxZ),
-                new BlockPos(maxX, minY, maxZ),
-                new BlockPos(maxX, maxY, minZ),
-                new BlockPos(midX, midY, midZ)
-        );
-    }
-
-    @OnlyIn(Dist.CLIENT)
-    public AssemblyBakedMesh getOrBuildMesh() {
-        if (bakedMesh == null) {
-            bakedMesh = new AssemblyBakedMesh();
-            bakedMesh.requestRebuild(assembly.getBlocks(), position());
-        }
-        return bakedMesh;
     }
 }
