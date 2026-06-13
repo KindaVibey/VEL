@@ -25,7 +25,9 @@ public record AssemblySyncPayload(int entityId, CompoundTag assemblyNbt) impleme
         ListTag list = new ListTag();
         for (AssemblyBlock block : blocks) {
             CompoundTag entry = new CompoundTag();
-            entry.put("pos", NbtUtils.writeBlockPos(block.relativePos()));
+            entry.putDouble("relX", block.relX());
+            entry.putDouble("relY", block.relY());
+            entry.putDouble("relZ", block.relZ());
             entry.put("state", NbtUtils.writeBlockState(block.state()));
             list.add(entry);
         }

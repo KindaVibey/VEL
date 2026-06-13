@@ -23,15 +23,17 @@ public class Assembly {
     public static Assembly capture(Level level, BlockPos min, BlockPos max) {
         List<AssemblyBlock> blocks = new ArrayList<>();
 
-        int originX = (int) Math.floor(min.getX() + (max.getX() - min.getX() + 1) / 2.0);
-        int originY = (int) Math.floor(min.getY() + (max.getY() - min.getY()) / 2.0);
-        int originZ = (int) Math.floor(min.getZ() + (max.getZ() - min.getZ() + 1) / 2.0);
-        BlockPos origin = new BlockPos(originX, originY, originZ);
+        double centerX = min.getX() + (max.getX() - min.getX() + 1) / 2.0;
+        double centerY = min.getY() + (max.getY() - min.getY() + 1) / 2.0;
+        double centerZ = min.getZ() + (max.getZ() - min.getZ() + 1) / 2.0;
 
         for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
             BlockState state = level.getBlockState(pos);
             if (!state.isAir()) {
-                blocks.add(new AssemblyBlock(pos.subtract(origin), state));
+                double rx = pos.getX() - centerX;
+                double ry = pos.getY() + 0.5 - centerY;
+                double rz = pos.getZ() - centerZ;
+                blocks.add(new AssemblyBlock(rx, ry, rz, state));
             }
         }
 
