@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
@@ -11,6 +12,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import net.vibey.vel.internal.assemblies.AssemblyBlock;
+import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 
 import java.util.LinkedHashMap;
@@ -18,6 +20,8 @@ import java.util.List;
 
 public class AssemblyBakedMesh {
 
+    // We only bake into solid and cutout — translucent needs separate handling
+    // (sorting) which we can add later. Cutout mipped is the same shader as cutout.
     private static final List<RenderType> RENDER_TYPES = List.of(
             RenderType.solid(),
             RenderType.cutout(),
@@ -87,23 +91,37 @@ public class AssemblyBakedMesh {
         built = !buffers.isEmpty();
     }
 
-    public void draw(PoseStack poseStack, Matrix4f projectionMatrix) {
+    public void draw(PoseStack poseStack, Matrix4f projectionMatrix, Matrix3f normalMat) {
         if (!built || buffers.isEmpty()) return;
 
+        ShaderInstance shader = AssemblyShaders.getAssemblyShader();
+        if (shader == null) return; // not registered yet, skip
+
         Minecraft.getInstance().gameRenderer.lightTexture().turnOnLightLayer();
+
+        // Upload our normal matrix. This is the only custom uniform —
+        // setDefaultUniforms handles everything else (fog, lightmap, etc.)
+        var normalMatUniform = shader.getUniform("AssemblyNormalMat");
+        if (normalMatUniform != null) {
+            normalMatUniform.set(normalMat);
+        }
 
         Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix())
                 .mul(poseStack.last().pose());
 
         for (var entry : buffers.entrySet()) {
-            RenderType renderType = entry.getKey();
             VertexBuffer vb = entry.getValue();
 
-            renderType.setupRenderState();
+            // Use our shader for every render type — we have one shader that
+            // handles solid/cutout/translucent all the same way (alpha < 0.1 discard).
+            // Vanilla render type state (depth, blending) is still set by setupRenderState.
+            entry.getKey().setupRenderState();
+
             vb.bind();
-            vb.drawWithShader(modelView, projectionMatrix, RenderSystem.getShader());
+            vb.drawWithShader(modelView, projectionMatrix, shader);
             VertexBuffer.unbind();
-            renderType.clearRenderState();
+
+            entry.getKey().clearRenderState();
         }
 
         Minecraft.getInstance().gameRenderer.lightTexture().turnOffLightLayer();

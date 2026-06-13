@@ -14,6 +14,7 @@ import net.neoforged.api.distmarker.OnlyIn;
 import net.vibey.vel.internal.assemblies.Assembly;
 import net.vibey.vel.internal.assemblies.AssemblyBlock;
 import net.vibey.vel.internal.assemblies.render.AssemblyBakedMesh;
+import org.joml.Quaternionf;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.List;
 public class AssemblyEntity extends Entity {
 
     private Assembly assembly = new Assembly(new ArrayList<>());
+    private final Quaternionf rotation = new Quaternionf(); // identity = no rotation
 
     public AssemblyEntity(EntityType<? extends AssemblyEntity> type, Level level) {
         super(type, level);
@@ -37,6 +39,12 @@ public class AssemblyEntity extends Entity {
         }
     }
 
+    public Quaternionf getRotation() { return rotation; }
+
+    public void setRotation(Quaternionf q) {
+        rotation.set(q).normalize();
+    }
+
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {}
 
@@ -50,6 +58,13 @@ public class AssemblyEntity extends Entity {
             list.add(entry);
         }
         tag.put("blocks", list);
+
+        CompoundTag rot = new CompoundTag();
+        rot.putFloat("x", rotation.x());
+        rot.putFloat("y", rotation.y());
+        rot.putFloat("z", rotation.z());
+        rot.putFloat("w", rotation.w());
+        tag.put("rotation", rot);
     }
 
     @Override
@@ -66,6 +81,17 @@ public class AssemblyEntity extends Entity {
             blocks.add(new AssemblyBlock(pos, state));
         }
         this.assembly = new Assembly(blocks);
+
+        if (tag.contains("rotation")) {
+            CompoundTag rot = tag.getCompound("rotation");
+            rotation.set(
+                    rot.getFloat("x"),
+                    rot.getFloat("y"),
+                    rot.getFloat("z"),
+                    rot.getFloat("w")
+            ).normalize();
+        }
+
         if (level().isClientSide()) {
             meshDirty = true;
         }
