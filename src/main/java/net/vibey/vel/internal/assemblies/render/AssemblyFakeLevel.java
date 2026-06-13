@@ -113,3 +113,5 @@ public class AssemblyFakeLevel implements BlockAndTintGetter {
     @Override
     public BlockEntity getBlockEntity(BlockPos pos) { return null; }
 }
+
+//test

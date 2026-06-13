@@ -172,3 +172,5 @@ public class AssemblyBakedMesh {
         built = false;
     }
 }
+
+//test

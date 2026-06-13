@@ -36,3 +36,5 @@ public class AssemblyRenderer<T extends AssemblyEntity> extends EntityRenderer<T
         super.render(entity, entityYaw, partialTick, poseStack, buffer, packedLight);
     }
 }
+
+//test
