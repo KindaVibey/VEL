@@ -7,5 +7,3 @@ public record AssemblyBlock(
         BlockPos relativePos,
         BlockState state
 ) { }
-
-//test

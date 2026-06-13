@@ -1,4 +1,3 @@
-// AssemblyEntity.java
 package net.vibey.vel.internal.assemblies.entity;
 
 import net.minecraft.core.BlockPos;
@@ -10,27 +9,18 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LightLayer;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.vibey.vel.internal.assemblies.Assembly;
 import net.vibey.vel.internal.assemblies.AssemblyBlock;
-import net.vibey.vel.internal.assemblies.render.AssemblyRenderData;
-import org.joml.Quaternionf;
+import net.vibey.vel.internal.assemblies.render.AssemblyBakedMesh;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class AssemblyEntity extends Entity {
-
     private Assembly assembly = new Assembly(new ArrayList<>());
-
-    private final Quaternionf assemblyRotation = new Quaternionf();
-
-    @OnlyIn(Dist.CLIENT)
-    private AssemblyRenderData renderData;
-
-    @OnlyIn(Dist.CLIENT)
-    private BlockPos lastRebuildPos;
 
     public AssemblyEntity(EntityType<? extends AssemblyEntity> type, Level level) {
         super(type, level);
@@ -39,67 +29,15 @@ public class AssemblyEntity extends Entity {
     }
 
     public Assembly getAssembly() {
-        return assembly;
+        return this.assembly;
     }
 
     public void setAssembly(Assembly assembly) {
         this.assembly = assembly;
         if (level().isClientSide()) {
-            scheduleFullRebuild();
-        }
-    }
-
-    public Quaternionf getAssemblyRotation() {
-        return assemblyRotation;
-    }
-
-    public void setAssemblyRotation(Quaternionf rotation) {
-        this.assemblyRotation.set(rotation);
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
-
-        if (!level().isClientSide()) return;
-        if (assembly == null || assembly.getBlocks().isEmpty()) return;
-
-        if (renderData != null) {
-            renderData.tick();
-        }
-
-        if (renderData != null && renderData.isBuilt()) {
-            if (renderData.needsLightRefresh(position())) {
-                renderData.requestLightRefresh(assembly.getBlocks(), position());
-            }
-        }
-    }
-
-    @OnlyIn(Dist.CLIENT)
-    private void scheduleFullRebuild() {
-        if (renderData == null) {
-            renderData = new AssemblyRenderData();
-        }
-        if (assembly != null && !assembly.getBlocks().isEmpty()) {
-            renderData.requestRebuild(assembly.getBlocks(), position());
-            lastRebuildPos = blockPosition();
-        }
-    }
-
-    @OnlyIn(Dist.CLIENT)
-    public AssemblyRenderData getRenderData() {
-        if (renderData == null && assembly != null && !assembly.getBlocks().isEmpty()) {
-            scheduleFullRebuild();
-        }
-        return renderData;
-    }
-
-    @Override
-    public void onRemovedFromLevel() {
-        super.onRemovedFromLevel();
-        if (level().isClientSide() && renderData != null) {
-            renderData.dispose();
-            renderData = null;
+            cachedSamplePoints = null;
+            lastLightHash = 0;
+            if (bakedMesh != null) bakedMesh.dispose();
         }
     }
 
@@ -111,9 +49,7 @@ public class AssemblyEntity extends Entity {
         ListTag list = new ListTag();
         for (AssemblyBlock block : assembly.getBlocks()) {
             CompoundTag entry = new CompoundTag();
-            entry.putDouble("relX", block.relX());
-            entry.putDouble("relY", block.relY());
-            entry.putDouble("relZ", block.relZ());
+            entry.put("pos", NbtUtils.writeBlockPos(block.relativePos()));
             entry.put("state", NbtUtils.writeBlockState(block.state()));
             list.add(entry);
         }
@@ -126,21 +62,94 @@ public class AssemblyEntity extends Entity {
         ListTag list = tag.getList("blocks", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);
-            double relX = entry.getDouble("relX");
-            double relY = entry.getDouble("relY");
-            double relZ = entry.getDouble("relZ");
+            BlockPos pos = NbtUtils.readBlockPos(entry, "pos").orElse(BlockPos.ZERO);
             var state = NbtUtils.readBlockState(
-                    level().registryAccess().lookupOrThrow(
-                            net.minecraft.core.registries.Registries.BLOCK),
+                    level().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BLOCK),
                     entry.getCompound("state")
             );
-            blocks.add(new AssemblyBlock(relX, relY, relZ, state));
+            blocks.add(new AssemblyBlock(pos, state));
         }
         this.assembly = new Assembly(blocks);
-        if (level().isClientSide()) {
-            scheduleFullRebuild();
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    private AssemblyBakedMesh bakedMesh;
+
+    @OnlyIn(Dist.CLIENT)
+    private int lastLightHash = 0;
+
+    @OnlyIn(Dist.CLIENT)
+    private List<BlockPos> cachedSamplePoints = null;
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (!level().isClientSide()) return;
+        if (assembly == null || assembly.getBlocks().isEmpty()) return;
+
+        if (bakedMesh != null) bakedMesh.tick();
+
+        if (cachedSamplePoints == null) {
+            cachedSamplePoints = computeSamplePoints();
+        }
+
+        var lightEngine = level().getLightEngine();
+        BlockPos origin = blockPosition();
+
+        int hash = 0;
+        for (BlockPos p : cachedSamplePoints) {
+            BlockPos world = origin.offset(p);
+            int blockLight = lightEngine.getLayerListener(LightLayer.BLOCK).getLightValue(world);
+            int skyLight   = lightEngine.getLayerListener(LightLayer.SKY).getLightValue(world);
+            hash = hash * 31 + blockLight;
+            hash = hash * 31 + skyLight;
+        }
+        hash = hash * 31 + (int)(level().getDayTime() / 1200);
+
+        if (hash != lastLightHash) {
+            lastLightHash = hash;
+            if (bakedMesh == null) bakedMesh = new AssemblyBakedMesh();
+            bakedMesh.requestRebuild(assembly.getBlocks(), position());
         }
     }
-}
 
-//test
+    @OnlyIn(Dist.CLIENT)
+    private List<BlockPos> computeSamplePoints() {
+        if (assembly.getBlocks().isEmpty()) return List.of(BlockPos.ZERO);
+
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+
+        for (AssemblyBlock b : assembly.getBlocks()) {
+            BlockPos p = b.relativePos();
+            minX = Math.min(minX, p.getX()); maxX = Math.max(maxX, p.getX());
+            minY = Math.min(minY, p.getY()); maxY = Math.max(maxY, p.getY());
+            minZ = Math.min(minZ, p.getZ()); maxZ = Math.max(maxZ, p.getZ());
+        }
+
+        int midX = (minX + maxX) / 2;
+        int midY = (minY + maxY) / 2;
+        int midZ = (minZ + maxZ) / 2;
+
+        return List.of(
+                new BlockPos(minX, minY, minZ),
+                new BlockPos(maxX, minY, minZ),
+                new BlockPos(minX, maxY, minZ),
+                new BlockPos(minX, minY, maxZ),
+                new BlockPos(maxX, maxY, maxZ),
+                new BlockPos(minX, maxY, maxZ),
+                new BlockPos(maxX, minY, maxZ),
+                new BlockPos(maxX, maxY, minZ),
+                new BlockPos(midX, midY, midZ)
+        );
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public AssemblyBakedMesh getOrBuildMesh() {
+        if (bakedMesh == null) {
+            bakedMesh = new AssemblyBakedMesh();
+            bakedMesh.requestRebuild(assembly.getBlocks(), position());
+        }
+        return bakedMesh;
+    }
+}
