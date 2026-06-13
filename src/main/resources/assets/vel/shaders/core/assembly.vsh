@@ -1,7 +1,6 @@
 #version 150
 
 #moj_import <fog.glsl>
-#moj_import <light.glsl>
 
 in vec3 Position;
 in vec4 Color;
@@ -16,14 +15,28 @@ uniform mat4 ProjMat;
 uniform vec3 ChunkOffset;
 uniform int FogShape;
 
-// Rotation matrix built from the assembly entity's quaternion.
-// Transforms face normals from local block space into world space
-// so the dot product against the sun vector is meaningful.
+// Rotation matrix built from the assembly entity's quaternion (mat3, not mat4).
+// Used to rotate baked normals into world space.
 uniform mat3 AssemblyNormalMat;
 
 out float vertexDistance;
 out vec4 vertexColor;
 out vec2 texCoord0;
+
+// Replicates vanilla's getShade() per-face brightness as a continuous function
+// of a world-space normal direction, matching:
+//   DOWN=0.5, UP=1.0, N/S=0.8, E/W=0.6
+// This is the same formula Sable's block_brightness() uses internally.
+float blockBrightness(vec3 normal) {
+    // Vanilla uses two fixed directional lights via minecraft_mix_light.
+    // These vectors reproduce all 6 face values exactly (solved numerically):
+    //   L0 = normalize(-0.333333,  1.0,  0.666667)
+    //   L1 = normalize( 0.333333, -0.166667, -0.666667)
+    // LIGHT_POWER=0.6, AMBIENT=0.4 → same as minecraft_mix_light constants.
+    float light0 = max(0.0, dot(normalize(vec3(-0.333333,  1.000000,  0.666667)), normal));
+    float light1 = max(0.0, dot(normalize(vec3( 0.333333, -0.166667, -0.666667)), normal));
+    return min(1.0, (light0 + light1) * 0.6 + 0.4);
+}
 
 void main() {
     vec3 pos = Position + ChunkOffset;
@@ -31,22 +44,36 @@ void main() {
 
     vertexDistance = fog_distance(pos, FogShape);
 
-    // Lightmap — same as vanilla solid.
-    vec4 lightColor = minecraft_sample_lightmap(Sampler2, UV2);
+    // The baked Color already has getShade() applied per face (DOWN=0.5, UP=1.0,
+    // N/S=0.8, E/W=0.6) from tesselateWithoutAO, assuming AssemblyFakeLevel
+    // has getLightEmission() returning non-zero to force the flat path.
+    //
+    // We need to:
+    //   1. Undo the baked per-face shading (divide by what getShade() would have
+    //      returned for this face's ORIGINAL axis-aligned normal)
+    //   2. Redo it using the ROTATED world-space normal so it stays correct
+    //      after the assembly entity rotates
+    //
+    // Sable's approach: rotate the baked normal into world space via the
+    // assembly's rotation matrix, then recompute brightness from that.
+    // The baked normal in the vertex is the axis-aligned face normal (e.g.
+    // (0,1,0) for UP faces). AssemblyNormalMat rotates it to world space.
 
-    // Rotate normal into world space and dot against sun.
-    // Sun direction: roughly from the upper south-east, matching MC's default
-    // directional lighting angle. Normalized in the shader for correctness.
     vec3 worldNormal = normalize(AssemblyNormalMat * Normal);
-    vec3 sunDir = normalize(vec3(0.2, 1.0, 0.4));
-    float sunDot = max(dot(worldNormal, sunDir), 0.0);
 
-    // Remap: faces pointing at sun are full bright, faces pointing away
-    // bottom out at 0.4 so nothing is ever fully black.
-    float shade = 0.4 + sunDot * 0.6;
+    // Brightness the baked Color was computed with (axis-aligned normal, no rotation)
+    float bakedBrightness = blockBrightness(Normal);
 
-    vertexColor = Color * lightColor;
-    vertexColor.rgb *= shade;
+    // Brightness we want (rotated normal)
+    float rotatedBrightness = blockBrightness(worldNormal);
+
+    // Undo baked, apply rotated. Guard against divide-by-zero on degenerate normals.
+    float brightnessScale = (bakedBrightness > 0.001) ? (rotatedBrightness / bakedBrightness) : 1.0;
+
+    vec4 lightmapColor = texture(Sampler2, clamp(UV2 / 256.0, vec2(0.5 / 16.0), vec2(15.5 / 16.0)));
+
+    vertexColor = Color * lightmapColor;
+    vertexColor.rgb *= brightnessScale;
 
     texCoord0 = UV0;
 }

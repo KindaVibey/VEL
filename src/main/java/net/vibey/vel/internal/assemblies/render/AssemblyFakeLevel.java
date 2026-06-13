@@ -45,14 +45,7 @@ public class AssemblyFakeLevel implements BlockAndTintGetter {
 
     @Override
     public float getShade(Direction direction, boolean shade) {
-//        if (!shade) return 1.0f;
-//        return switch (direction) {
-//            case DOWN -> 0.5f;
-//            case UP -> 1.0f;
-//            case NORTH, SOUTH -> 0.8f;
-//            case WEST, EAST -> 0.6f;
-//        };
-        return 1.0f;
+        return this.level.getShade(direction, shade);
     }
 
     @Override
@@ -88,4 +81,10 @@ public class AssemblyFakeLevel implements BlockAndTintGetter {
     @Nullable
     @Override
     public BlockEntity getBlockEntity(BlockPos pos) { return null; }
+
+    @Override
+    public int getLightEmission(BlockPos pos) {
+        BlockState state = getBlockState(pos);
+        return state.isAir() ? 0 : 1;
+    }
 }
