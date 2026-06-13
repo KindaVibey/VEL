@@ -13,9 +13,8 @@ import net.neoforged.neoforge.client.model.data.ModelData;
 import net.vibey.vel.internal.assemblies.AssemblyBlock;
 import org.joml.Matrix4f;
 
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 public class AssemblyBakedMesh {
 
@@ -26,57 +25,23 @@ public class AssemblyBakedMesh {
             RenderType.translucent()
     );
 
-    private static final ExecutorService MESH_EXECUTOR = Executors.newFixedThreadPool(
-            Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4)),
-            r -> {
-                Thread t = new Thread(r, "assembly-mesh-builder");
-                t.setDaemon(true);
-                t.setPriority(Thread.NORM_PRIORITY - 2);
-                return t;
-            }
-    );
-
     private final LinkedHashMap<RenderType, VertexBuffer> buffers = new LinkedHashMap<>();
-    private final AtomicReference<Map<RenderType, MeshData>> pendingMeshes = new AtomicReference<>(null);
     private boolean built = false;
-    private Future<?> pendingBuild = null;
 
-    public void requestRebuild(List<AssemblyBlock> blocks, Vec3 entityPos) {
+    public void rebuild(List<AssemblyBlock> blocks, Vec3 entityPos) {
+        dispose();
         if (blocks.isEmpty()) return;
 
         BlockPos entityBlockPos = BlockPos.containing(entityPos);
-        AssemblyFakeLevel fakeLevel = new AssemblyFakeLevel(blocks, entityBlockPos);
-
         double fracX = entityPos.x - entityBlockPos.getX();
         double fracY = entityPos.y - entityBlockPos.getY();
         double fracZ = entityPos.z - entityBlockPos.getZ();
 
-        if (pendingBuild != null && !pendingBuild.isDone()) {
-            pendingBuild.cancel(true);
-        }
-
-        List<AssemblyBlock> snapshot = List.copyOf(blocks);
-
-        pendingBuild = MESH_EXECUTOR.submit(() -> {
-            Map<RenderType, MeshData> meshes = compileMeshes(
-                    snapshot, fakeLevel, fracX, fracY, fracZ
-            );
-            pendingMeshes.set(meshes);
-        });
-    }
-
-    private Map<RenderType, MeshData> compileMeshes(
-            List<AssemblyBlock> blocks,
-            AssemblyFakeLevel fakeLevel,
-            double fracX, double fracY, double fracZ) {
-
+        AssemblyFakeLevel fakeLevel = new AssemblyFakeLevel(blocks, entityBlockPos);
         BlockRenderDispatcher dispatcher = Minecraft.getInstance().getBlockRenderer();
         RandomSource random = RandomSource.create();
-        Map<RenderType, MeshData> result = new LinkedHashMap<>();
 
         for (RenderType renderType : RENDER_TYPES) {
-            if (Thread.currentThread().isInterrupted()) break;
-
             ByteBufferBuilder byteBuffer = new ByteBufferBuilder(renderType.bufferSize());
             BufferBuilder builder = new BufferBuilder(
                     byteBuffer, VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK
@@ -85,15 +50,13 @@ public class AssemblyBakedMesh {
             boolean hasAny = false;
 
             for (AssemblyBlock block : blocks) {
-                if (Thread.currentThread().isInterrupted()) break;
-
-                BlockPos pos = block.relativePos();
                 var state = block.state();
                 if (state.isAir()) continue;
 
                 BakedModel model = dispatcher.getBlockModel(state);
                 if (!model.getRenderTypes(state, random, ModelData.EMPTY).contains(renderType)) continue;
 
+                BlockPos pos = block.relativePos();
                 PoseStack ps = new PoseStack();
                 ps.translate(pos.getX() - fracX, pos.getY() - fracY, pos.getZ() - fracZ);
 
@@ -108,7 +71,11 @@ public class AssemblyBakedMesh {
             if (hasAny) {
                 MeshData mesh = builder.build();
                 if (mesh != null) {
-                    result.put(renderType, mesh);
+                    VertexBuffer vb = new VertexBuffer(VertexBuffer.Usage.STATIC);
+                    vb.bind();
+                    vb.upload(mesh);
+                    VertexBuffer.unbind();
+                    buffers.put(renderType, vb);
                 } else {
                     byteBuffer.close();
                 }
@@ -117,34 +84,13 @@ public class AssemblyBakedMesh {
             }
         }
 
-        return result;
-    }
-
-    public void tick() {
-        Map<RenderType, MeshData> pending = pendingMeshes.getAndSet(null);
-        if (pending != null) {
-            uploadMeshes(pending);
-        }
-    }
-
-    private void uploadMeshes(Map<RenderType, MeshData> meshes) {
-        // Free old GPU memory
-        buffers.values().forEach(VertexBuffer::close);
-        buffers.clear();
-
-        for (var entry : meshes.entrySet()) {
-            VertexBuffer vb = new VertexBuffer(VertexBuffer.Usage.STATIC);
-            vb.bind();
-            vb.upload(entry.getValue());
-            VertexBuffer.unbind();
-            buffers.put(entry.getKey(), vb);
-        }
-
         built = !buffers.isEmpty();
     }
 
     public void draw(PoseStack poseStack, Matrix4f projectionMatrix) {
         if (!built || buffers.isEmpty()) return;
+
+        Minecraft.getInstance().gameRenderer.lightTexture().turnOnLightLayer();
 
         Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix())
                 .mul(poseStack.last().pose());
@@ -159,14 +105,13 @@ public class AssemblyBakedMesh {
             VertexBuffer.unbind();
             renderType.clearRenderState();
         }
+
+        Minecraft.getInstance().gameRenderer.lightTexture().turnOffLightLayer();
     }
 
     public boolean isBuilt() { return built; }
 
     public void dispose() {
-        if (pendingBuild != null && !pendingBuild.isDone()) {
-            pendingBuild.cancel(true);
-        }
         buffers.values().forEach(VertexBuffer::close);
         buffers.clear();
         built = false;
