@@ -9,12 +9,14 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.vibey.vel.internal.assemblies.Assembly;
 import net.vibey.vel.internal.assemblies.AssemblyBlock;
 import net.vibey.vel.internal.assemblies.render.AssemblyBakedMesh;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +25,7 @@ public class AssemblyEntity extends Entity {
 
     private Assembly assembly = new Assembly(new ArrayList<>());
     private final Quaternionf rotation = new Quaternionf(); // identity = no rotation
+    private Vector3f pivot = new Vector3f(0, 0.5f, 0);
 
     public AssemblyEntity(EntityType<? extends AssemblyEntity> type, Level level) {
         super(type, level);
@@ -43,6 +46,20 @@ public class AssemblyEntity extends Entity {
 
     public void setRotation(Quaternionf q) {
         rotation.set(q).normalize();
+    }
+
+    public void setPivot(float x, float y, float z) {
+        this.pivot = new Vector3f(x, y, z);
+    }
+
+    public Vector3f getPivot() { return pivot; }
+
+    public final Quaternionf prevRotation = new Quaternionf(); // add this
+
+    @Override
+    public void tick() {
+        prevRotation.set(rotation); // save before mutating
+        rotation.rotateXYZ(0.005f, 0.013f, 0.007f).normalize();
     }
 
     @Override

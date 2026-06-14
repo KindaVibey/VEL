@@ -12,6 +12,8 @@ import net.neoforged.api.distmarker.OnlyIn;
 import net.vibey.vel.internal.assemblies.entity.AssemblyEntity;
 import net.vibey.vel.internal.assemblies.render.AssemblyBakedMesh;
 import org.joml.Matrix3f;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 @OnlyIn(Dist.CLIENT)
 public class AssemblyRenderer<T extends AssemblyEntity> extends EntityRenderer<T> {
@@ -31,8 +33,20 @@ public class AssemblyRenderer<T extends AssemblyEntity> extends EntityRenderer<T
 
         AssemblyBakedMesh mesh = entity.getOrBuildMesh();
         if (mesh.isBuilt()) {
-            Matrix3f normalMat = new Matrix3f().rotate(entity.getRotation());
+            Quaternionf interpolated = new Quaternionf(entity.prevRotation)
+                    .slerp(entity.getRotation(), partialTick);
+
+            Vector3f pivot = entity.getPivot();
+
+            poseStack.pushPose();
+            poseStack.translate(pivot.x, pivot.y, pivot.z);   // move to pivot
+            poseStack.mulPose(interpolated);                    // rotate around pivot
+            poseStack.translate(-pivot.x, -pivot.y, -pivot.z); // move back
+
+            Matrix3f normalMat = new Matrix3f().rotate(interpolated);
             mesh.draw(poseStack, RenderSystem.getProjectionMatrix(), normalMat);
+
+            poseStack.popPose();
         }
 
         super.render(entity, entityYaw, partialTick, poseStack, buffer, packedLight);

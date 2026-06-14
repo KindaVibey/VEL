@@ -91,38 +91,64 @@ public class AssemblyBakedMesh {
         built = !buffers.isEmpty();
     }
 
+//    public void draw(PoseStack poseStack, Matrix4f projectionMatrix, Matrix3f normalMat) {
+//        if (!built || buffers.isEmpty()) return;
+//
+//        ShaderInstance shader = AssemblyShaders.getAssemblyShader();
+//        if (shader == null) return; // not registered yet, skip
+//
+//        Minecraft.getInstance().gameRenderer.lightTexture().turnOnLightLayer();
+//
+//        // Upload our normal matrix. This is the only custom uniform —
+//        // setDefaultUniforms handles everything else (fog, lightmap, etc.)
+//        var normalMatUniform = shader.getUniform("AssemblyNormalMat");
+//        if (normalMatUniform != null) {
+//            normalMatUniform.set(normalMat);
+//        }
+//
+//        Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix())
+//                .mul(poseStack.last().pose());
+//
+//        for (var entry : buffers.entrySet()) {
+//            VertexBuffer vb = entry.getValue();
+//
+//            // Use our shader for every render type — we have one shader that
+//            // handles solid/cutout/translucent all the same way (alpha < 0.1 discard).
+//            // Vanilla render type state (depth, blending) is still set by setupRenderState.
+//            entry.getKey().setupRenderState();
+//
+//            vb.bind();
+//            vb.drawWithShader(modelView, projectionMatrix, shader);
+//            VertexBuffer.unbind();
+//
+//            entry.getKey().clearRenderState();
+//        }
+//
+//        Minecraft.getInstance().gameRenderer.lightTexture().turnOffLightLayer();
+//    }
+
     public void draw(PoseStack poseStack, Matrix4f projectionMatrix, Matrix3f normalMat) {
         if (!built || buffers.isEmpty()) return;
 
-        ShaderInstance shader = AssemblyShaders.getAssemblyShader();
-        if (shader == null) return; // not registered yet, skip
-
         Minecraft.getInstance().gameRenderer.lightTexture().turnOnLightLayer();
-
-        // Upload our normal matrix. This is the only custom uniform —
-        // setDefaultUniforms handles everything else (fog, lightmap, etc.)
-        var normalMatUniform = shader.getUniform("AssemblyNormalMat");
-        if (normalMatUniform != null) {
-            normalMatUniform.set(normalMat);
-        }
 
         Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix())
                 .mul(poseStack.last().pose());
 
+        // Push the rotated normal matrix so vanilla shader gets correct normals
+        RenderSystem.getModelViewStack().pushMatrix();
+        RenderSystem.getModelViewStack().mul(poseStack.last().pose());
+
         for (var entry : buffers.entrySet()) {
             VertexBuffer vb = entry.getValue();
-
-            // Use our shader for every render type — we have one shader that
-            // handles solid/cutout/translucent all the same way (alpha < 0.1 discard).
-            // Vanilla render type state (depth, blending) is still set by setupRenderState.
             entry.getKey().setupRenderState();
-
             vb.bind();
-            vb.drawWithShader(modelView, projectionMatrix, shader);
+            vb.drawWithShader(modelView, projectionMatrix, RenderSystem.getShader());
             VertexBuffer.unbind();
-
             entry.getKey().clearRenderState();
         }
+
+        RenderSystem.getModelViewStack().popMatrix();
 
         Minecraft.getInstance().gameRenderer.lightTexture().turnOffLightLayer();
     }
