@@ -14,7 +14,6 @@ import static com.mojang.blaze3d.vertex.DefaultVertexFormat.BLOCK;
 @OnlyIn(Dist.CLIENT)
 public class AssemblyShaders {
 
-    // Held on the render thread only — set via the RegisterShadersEvent callback.
     private static ShaderInstance assemblyShader;
 
     public static ShaderInstance getAssemblyShader() {

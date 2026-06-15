@@ -35,6 +35,29 @@ public class AssemblyEntity extends Entity {
 
     public Assembly getAssembly() { return assembly; }
 
+    public boolean cornersSet = false;
+
+    public double minX = Double.MAX_VALUE,  minY = Double.MAX_VALUE,  minZ = Double.MAX_VALUE;
+    public double maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
+
+    public void assemblyCorners(){
+        for (AssemblyBlock block : assembly.getBlocks()) {
+            BlockPos p = block.relativePos();
+            for (int cx = 0; cx <= 1; cx++) {
+                for (int cy = 0; cy <= 1; cy++) {
+                    for (int cz = 0; cz <= 1; cz++) {
+                        double x = p.getX() + cx;
+                        double y = p.getY() + cy;
+                        double z = p.getZ() + cz;
+                        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                        minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+                    }
+                }
+            }
+        }
+    }
+
     public void setAssembly(Assembly assembly) {
         this.assembly = assembly;
         if (level().isClientSide()) {

@@ -135,7 +135,6 @@ public class AssemblyBakedMesh {
         Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix())
                 .mul(poseStack.last().pose());
 
-        // Push the rotated normal matrix so vanilla shader gets correct normals
         RenderSystem.getModelViewStack().pushMatrix();
         RenderSystem.getModelViewStack().mul(poseStack.last().pose());
 
